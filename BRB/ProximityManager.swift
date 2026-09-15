@@ -363,11 +363,20 @@ class ProximityManager {
     }
 
     private func recordSample(rssi: Int, kind: String) {
+        let now = Date()
+        // Stale-EMA reset: if the previous sample is older than the freshness
+        // horizon, the old smoothed value describes a different situation
+        // (e.g. pre-walk-away). Reset so this sample passes straight through
+        // instead of dragging stale history into the return decision.
+        if let last = liveRSSIAt, now.timeIntervalSince(last) > 12.0 {
+            signalProcessor.reset()
+        }
         liveRSSI = rssi
-        liveRSSIAt = Date()
+        liveRSSIAt = now
         liveKind = kind
-        let smoothed = signalProcessor.process(rawRSSI: rssi)
-        smoothedRSSI = smoothed
+        // TEMPORARY: EMA bypassed for testing — smoothed tracks raw directly.
+        // To restore: replace next line with signalProcessor.process(rawRSSI: rssi).
+        smoothedRSSI = Double(rssi)
     }
 
     private func evaluatePresenceState() {

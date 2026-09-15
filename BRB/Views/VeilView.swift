@@ -12,6 +12,7 @@ import AppKit
 struct VeilView: View {
     var reason: String?
     var onUnlock: () -> Void
+    var onDeveloperPause: (() -> Void)? = nil
 
     @State private var imageManager = VeilImageManager.shared
 
@@ -58,6 +59,29 @@ struct VeilView: View {
                         Text("Locks this Mac — log back in to dismiss the cover for a while.")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.7))
+
+#if DEBUG
+                        if let onDeveloperPause {
+                            Button(action: onDeveloperPause) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("Close & Pause 15s (Debug)")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 7)
+                                .background(Color.orange.opacity(0.25))
+                                .foregroundColor(.white)
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.orange.opacity(0.5), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+#endif
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)

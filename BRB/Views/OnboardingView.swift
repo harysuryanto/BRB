@@ -223,6 +223,12 @@ struct OnboardingView: View {
                     .font(.caption)
                     .foregroundColor(.green)
             }
+
+            if let pauseLeft = manager.calibrationPauseRemaining {
+                Text("Veil paused (\(Int(ceil(pauseLeft)))s) — walk back to your desk, then finish setup.")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+            }
         }
     }
 }

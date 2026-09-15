@@ -129,6 +129,17 @@ struct ContentView: View {
                                 .foregroundColor(.purple)
                                 .clipShape(Capsule())
                         }
+#if DEBUG
+                        if let devPause = manager.developerPauseRemaining {
+                            Text("Dev Pause (\(Int(ceil(devPause)))s)")
+                                .font(.caption.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.2))
+                                .foregroundColor(.orange)
+                                .clipShape(Capsule())
+                        }
+#endif
                     }
 
                     if let rssi = manager.liveRSSI {

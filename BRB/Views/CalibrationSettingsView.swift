@@ -61,6 +61,19 @@ struct CalibrationSettingsView: View {
                 Text("Calibration Actions")
                     .font(.subheadline.bold())
 
+                if let pauseLeft = manager.calibrationPauseRemaining {
+                    HStack {
+                        Image(systemName: "pause.circle.fill")
+                            .foregroundColor(.blue)
+                        Text("Veil paused (\(Int(ceil(pauseLeft)))s) — walk back to your desk.")
+                            .font(.caption.bold())
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(8)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(8)
+                }
+
                 HStack(spacing: 12) {
                     Button("Calibrate Away Boundary (~2m)") {
                         manager.calibrateAwayBoundary()

@@ -72,6 +72,8 @@ class ProximityManager {
     var isVeilActive: Bool = false {
         didSet {
             guard !Self.isPreview else { return }
+            // Test preview drives windows directly — engine must not tear it down.
+            guard !VeilWindowController.shared.isPreviewActive else { return }
             if isVeilActive {
                 VeilWindowController.shared.showVeil(reason: veilReason)
             } else {
@@ -86,6 +88,22 @@ class ProximityManager {
     // MARK: - Unlock & Suppression State
     var pendingManualUnlock: Bool = false
     var suppressionRemaining: TimeInterval? = nil
+
+    // MARK: - Calibration Cooldown
+    /// Veil activation is paused until this date after calibrating, giving the
+    /// user time to walk back to the desk before cover/lock can trigger.
+    var calibrationPauseUntil: Date? = nil
+    /// Countdown mirror for UI display, refreshed each engine tick.
+    var calibrationPauseRemaining: TimeInterval? = nil
+    static let calibrationPauseDuration: TimeInterval = 5.0
+
+    // MARK: - Developer Pause (DEBUG builds only)
+    /// Temporary veil pause triggered from the cover's debug button so the
+    /// veil doesn't keep firing while developing. Not persisted.
+    var developerPauseUntil: Date? = nil
+    /// Countdown mirror for UI display, refreshed each engine tick.
+    var developerPauseRemaining: TimeInterval? = nil
+    static let developerPauseDuration: TimeInterval = 15.0
 
     // MARK: - Internal Components
     private var leReader: LERSSIReader?
@@ -118,12 +136,25 @@ class ProximityManager {
     private func setupLockAndVeilCallbacks() {
         guard !Self.isPreview else { return }
 
+        // Let preview expiry hand off to real demand without a flicker gap.
+        VeilWindowController.shared.realVeilDemand = { [weak self] in
+            guard let self else { return (false, nil) }
+            return (self.isVeilActive, self.veilReason)
+        }
+
         // Wire veil unlock action -> escalate to macOS session lock
         VeilWindowController.shared.onUnlockRequested = { [weak self] in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.pendingManualUnlock = true
                 SessionLockManager.shared.lockScreen()
+            }
+        }
+
+        // Wire veil debug button -> dismiss + pause veil briefly (DEBUG builds)
+        VeilWindowController.shared.onDeveloperPauseRequested = { [weak self] in
+            DispatchQueue.main.async {
+                self?.pauseVeilForDeveloper()
             }
         }
 
@@ -267,7 +298,38 @@ class ProximityManager {
             isStale = true
         }
 
-        // 4. Check suppression window countdown
+        // 4. Calibration cooldown: pause veil activation so the user can walk
+        // back to the desk after capturing the away boundary.
+        if let until = calibrationPauseUntil {
+            let pauseLeft = until.timeIntervalSince(now)
+            if pauseLeft > 0 {
+                calibrationPauseRemaining = pauseLeft
+                awayDuration = 0
+                isVeilActive = false
+                veilReason = nil
+                return
+            } else {
+                calibrationPauseUntil = nil
+                calibrationPauseRemaining = nil
+            }
+        }
+
+        // 5. Developer pause (DEBUG cover button): keep veil down while it runs.
+        if let until = developerPauseUntil {
+            let pauseLeft = until.timeIntervalSince(now)
+            if pauseLeft > 0 {
+                developerPauseRemaining = pauseLeft
+                awayDuration = 0
+                isVeilActive = false
+                veilReason = nil
+                return
+            } else {
+                developerPauseUntil = nil
+                developerPauseRemaining = nil
+            }
+        }
+
+        // 6. Check suppression window countdown
         if let remaining = suppressionRemaining, remaining > 0 {
             let nextRemaining = max(0, remaining - 0.5)
             // If the bud returns mid-suppression, cancel suppression immediately and resume normal evaluation
@@ -287,7 +349,7 @@ class ProximityManager {
             }
         }
 
-        // 5. Presence state evaluation
+        // 7. Presence state evaluation
         evaluatePresenceState()
     }
 
@@ -319,8 +381,10 @@ class ProximityManager {
 
         let effectiveAge = sampleAge ?? Date().timeIntervalSince(monitoringStartedAt)
 
-        // Gone condition: No sightings for >= 2 * graceDelay
-        if effectiveAge >= (2.0 * graceDelay) {
+        // Gone condition: No sightings for >= 2 * graceDelay.
+        // Floor at 2s so Instant (0s) grace doesn't flag Gone immediately on every tick.
+        let goneThreshold = max(2.0 * graceDelay, 2.0)
+        if effectiveAge >= goneThreshold {
             presenceState = .gone
             isVeilActive = true
             veilReason = "Device gone (no signal detected for \(Int(effectiveAge))s)"
@@ -337,7 +401,7 @@ class ProximityManager {
             awayDuration += 0.5
             if awayDuration >= graceDelay {
                 isVeilActive = true
-                veilReason = "Away from Mac for \(Int(awayDuration))s"
+                veilReason = graceDelay <= 0 ? "Away from Mac (instant cover)" : "Away from Mac for \(Int(awayDuration))s"
             }
         } else if smoothed >= veilOffThreshold {
             presenceState = .near
@@ -350,7 +414,7 @@ class ProximityManager {
                 awayDuration += 0.5
                 if awayDuration >= graceDelay {
                     isVeilActive = true
-                    veilReason = "Away from Mac for \(Int(awayDuration))s"
+                    veilReason = graceDelay <= 0 ? "Away from Mac (instant cover)" : "Away from Mac for \(Int(awayDuration))s"
                 }
             } else {
                 presenceState = .near
@@ -390,6 +454,10 @@ class ProximityManager {
         isStale = false
         sampleAge = nil
         suppressionRemaining = nil
+        calibrationPauseUntil = nil
+        calibrationPauseRemaining = nil
+        developerPauseUntil = nil
+        developerPauseRemaining = nil
     }
 
     // MARK: - Calibration Actions
@@ -397,16 +465,40 @@ class ProximityManager {
         let reference = currentRSSI ?? smoothedRSSI ?? (liveRSSI != nil ? Double(liveRSSI!) : -80.0)
         veilOnThreshold = reference
         veilOffThreshold = reference + 10.0
+        startCalibrationPause()
     }
 
     func resetThresholdsToDefault() {
         veilOnThreshold = -80.0
         veilOffThreshold = -70.0
+        startCalibrationPause()
+    }
+
+    /// Pauses veil activation for a few seconds after calibration so the user
+    /// can walk back to the desk without the cover firing immediately.
+    private func startCalibrationPause() {
+        calibrationPauseUntil = Date().addingTimeInterval(Self.calibrationPauseDuration)
+        calibrationPauseRemaining = Self.calibrationPauseDuration
+        awayDuration = 0
+        isVeilActive = false
+        veilReason = nil
+    }
+
+    // MARK: - Developer Pause (DEBUG cover button)
+    /// Dismisses the veil and pauses all veil activation for `seconds`
+    /// (default 15s) to ease development. Not persisted.
+    func pauseVeilForDeveloper(seconds: TimeInterval = 15.0) {
+        developerPauseUntil = Date().addingTimeInterval(seconds)
+        developerPauseRemaining = seconds
+        awayDuration = 0
+        isVeilActive = false
+        veilReason = nil
     }
 
     // MARK: - Suppression Trigger (Used by Veil Unlock Flow)
     func startSuppression() {
-        suppressionRemaining = suppressDuration
+        // Instant (0) means no suppression window — resume normal evaluation.
+        suppressionRemaining = suppressDuration > 0 ? suppressDuration : nil
         isVeilActive = false
         veilReason = nil
         awayDuration = 0

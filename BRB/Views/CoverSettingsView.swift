@@ -11,6 +11,7 @@ import AppKit
 struct CoverSettingsView: View {
     @State private var imageManager = VeilImageManager.shared
     @State private var isTestPreviewActive: Bool = false
+    @State private var coverActiveHint: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -92,15 +93,38 @@ struct CoverSettingsView: View {
                     triggerTestPreview()
                 }
                 .buttonStyle(.bordered)
+                .disabled(isTestPreviewActive)
+            }
+
+            if coverActiveHint {
+                HStack {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.blue)
+                    Text("Cover is already active — preview skipped to avoid tearing it down.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(20)
     }
 
     private func triggerTestPreview() {
-        VeilWindowController.shared.showVeil(reason: "Preview mode (auto-dismissing in 3s)")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            VeilWindowController.shared.dismissVeilInstant()
+        // Don't stack previews, and don't hijack a real Away/Gone veil.
+        guard !isTestPreviewActive else { return }
+        guard !VeilWindowController.shared.isShowing else {
+            coverActiveHint = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                coverActiveHint = false
+            }
+            return
+        }
+        coverActiveHint = false
+        isTestPreviewActive = true
+        print("[BRB Veil] Test button tapped — calling showPreview")
+        VeilWindowController.shared.showPreview(duration: 3.0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.1) {
+            isTestPreviewActive = false
         }
     }
 }

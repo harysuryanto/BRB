@@ -11,13 +11,18 @@ struct TimersSecuritySettingsView: View {
     @Bindable var manager: ProximityManager
     var onResetOnboarding: () -> Void
 
+    /// Grace options (seconds): Instant + multiples of 5 up to 60.
+    private let graceOptions: [Int] = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
+    /// Suppression options (minutes): Instant + multiples of 5 up to 60.
+    private let suppressMinuteOptions: [Int] = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Timers & Security Policies")
                 .font(.headline)
 
             VStack(spacing: 16) {
-                // Grace Delay Stepper
+                // Grace Delay Dropdown
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Grace Delay")
@@ -27,16 +32,22 @@ struct TimersSecuritySettingsView: View {
                             .foregroundColor(.secondary)
                     }
                     Spacer()
-                    Stepper("\(Int(manager.graceDelay)) sec", value: $manager.graceDelay, in: 5...60, step: 1)
-                        .labelsHidden()
-                    Text("\(Int(manager.graceDelay))s")
-                        .font(.system(.subheadline, design: .monospaced).bold())
-                        .frame(width: 44, alignment: .trailing)
+                    Picker("Grace Delay", selection: Binding(
+                        get: { Self.nearestOption(graceOptions, to: Int(manager.graceDelay.rounded())) },
+                        set: { manager.graceDelay = TimeInterval($0) }
+                    )) {
+                        ForEach(graceOptions, id: \.self) { seconds in
+                            Text(graceLabel(seconds)).tag(seconds)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(width: 190)
                 }
 
                 Divider()
 
-                // Suppression Window Stepper
+                // Suppression Window Dropdown
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Post-Unlock Suppression")
@@ -46,15 +57,17 @@ struct TimersSecuritySettingsView: View {
                             .foregroundColor(.secondary)
                     }
                     Spacer()
-                    let minutes = Int(manager.suppressDuration / 60)
-                    Stepper("\(minutes) min", value: Binding(
-                        get: { Int(manager.suppressDuration / 60) },
+                    Picker("Post-Unlock Suppression", selection: Binding(
+                        get: { Self.nearestOption(suppressMinuteOptions, to: Int((manager.suppressDuration / 60).rounded())) },
                         set: { manager.suppressDuration = TimeInterval($0 * 60) }
-                    ), in: 5...60, step: 5)
-                        .labelsHidden()
-                    Text("\(minutes)m")
-                        .font(.system(.subheadline, design: .monospaced).bold())
-                        .frame(width: 44, alignment: .trailing)
+                    )) {
+                        ForEach(suppressMinuteOptions, id: \.self) { minutes in
+                            Text(suppressLabel(minutes)).tag(minutes)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(width: 190)
                 }
 
                 Divider()
@@ -90,5 +103,20 @@ struct TimersSecuritySettingsView: View {
             }
         }
         .padding(20)
+    }
+
+    private func graceLabel(_ seconds: Int) -> String {
+        seconds <= 0 ? "Instant (no delay)" : "\(seconds)s"
+    }
+
+    private func suppressLabel(_ minutes: Int) -> String {
+        minutes <= 0 ? "Instant (no suppression)" : "\(minutes)m"
+    }
+
+    /// Snaps a stored value to the nearest dropdown option (legacy values may
+    /// predate the multiples-of-5 options). Exact 0 stays Instant.
+    private static func nearestOption(_ options: [Int], to value: Int) -> Int {
+        if value <= 0 { return 0 }
+        return options.min(by: { abs($0 - value) < abs($1 - value) }) ?? value
     }
 }

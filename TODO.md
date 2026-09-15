@@ -5,8 +5,9 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 ---
 
 ## 📋 Status Overview
+
 - [x] **Phase 0: Project Setup & BLE Foundation**
-- [ ] **Phase 1: Signal Engine & State Machine**
+- [x] **Phase 1: Signal Engine & State Machine**
 - [ ] **Phase 2: Fullscreen Veil Window & Display Management**
 - [ ] **Phase 3: Veil Image Storage & Rendering**
 - [ ] **Phase 4: Lock Escalation & Post-Unlock Suppression**
@@ -16,7 +17,8 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 
 ---
 
-## Phase 0: Project Setup & BLE Foundation *(Completed)*
+## Phase 0: Project Setup & BLE Foundation _(Completed)_
+
 - [x] Xcode project structure and SwiftUI app target (`com.harysuryanto.brb`).
 - [x] Low-level CoreBluetooth engine (`LERSSIReader.swift`):
   - [x] Duplicates-allowed LE scanning.
@@ -31,26 +33,26 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 
 ---
 
-## Phase 1: Signal Engine & Proximity State Machine
-- [ ] **Tick & Sampling Rate:**
-  - [ ] Switch engine tick to 0.5s intervals.
-  - [ ] Implement data freshness gates (GATT samples <3s, advertisement samples <12s; freeze + mark stale past 12s; never extrapolate).
-- [ ] **Signal Processing:**
-  - [ ] Implement Exponential Moving Average (EMA) smoothing with $\alpha = 0.2$.
-  - [ ] Implement hysteresis band logic:
+## Phase 1: Signal Engine & Proximity State Machine _(Completed)_
+
+- [x] **Tick & Sampling Rate:**
+  - [x] Switch engine tick to 0.5s intervals.
+  - [x] Implement data freshness gates (GATT samples <3s, advertisement samples <12s; freeze + mark stale past 12s; never extrapolate).
+- [x] **Signal Processing:**
+  - [x] Implement Exponential Moving Average (EMA) smoothing with $\alpha = 0.2$ (`SignalProcessor.swift`).
+  - [x] Implement hysteresis band logic:
     - Veil-On threshold (default: `-80 dBm`).
     - Veil-Off threshold (default: `-70 dBm`).
-- [ ] **Presence State Machine:**
-  - [ ] Implement states: `Near`, `Far`, `Gone` (no sighting for $2 \times \text{grace}$ delay, e.g. bud cased/dead).
-  - [ ] Implement Grace Timer (default: 10s, configurable 5–60s). Any valid in-range sample resets the timer.
-  - [ ] Ensure switching monitored device completely resets histories, EMA, counters, active link, and pinned LE UUID.
-- [ ] **Classic Bluetooth Best-Effort (Optional Fallback):**
-  - [ ] Background queue `IOBluetoothDevice.pairedDevices()` lookup (avoid TCC main-thread semaphore deadlock).
-  - [ ] Re-resolve via `addressString` on poll; ignore raw RSSI values of 0 or 127.
+- [x] **Presence State Machine:**
+  - [x] Implement states: `Near`, `Far`, `Gone` (no sighting for $2 \times \text{grace}$ delay, e.g. bud cased/dead) (`PresenceState.swift`).
+  - [x] Implement Grace Timer (default: 10s, configurable 5–60s). Any valid in-range sample resets the timer.
+  - [x] Ensure switching monitored device completely resets histories, EMA, counters, active link, and pinned LE UUID.
+  - [x] Away boundary calibration logic and reset-to-defaults methods.
 
 ---
 
 ## Phase 2: Fullscreen Veil Window & Display Management
+
 - [ ] **Multi-Display Window Controller:**
   - [ ] Create an `NSWindowController` managing borderless windows across all screens (`NSScreen.screens`).
   - [ ] Configure `NSWindow`:
@@ -64,24 +66,26 @@ Tracking implementation progress against the [Product Requirements Document](PRD
   - [ ] Instant dismiss without animation when signal returns past the hysteresis gap.
 - [ ] **Veil UI Overlay:**
   - [ ] Full-bleed cover image rendering (aspect-fill).
-  - [ ] Single button overlay: **"Unlock with Mac Login"** with subtitle *"Locks this Mac — log back in to dismiss the cover for a while."*
+  - [ ] Single button overlay: **"Unlock with Mac Login"** with subtitle _"Locks this Mac — log back in to dismiss the cover for a while."_
 
 ---
 
 ## Phase 3: Veil Image Storage & Rendering
+
 - [ ] **Image Selection & Security-Scoped Bookmarks:**
   - [ ] Implement `NSOpenPanel` for user image selection (PNG, JPEG, TIFF, HEIC, BMP, GIF 1st frame).
   - [ ] Persist selected file as a security-scoped bookmark (`URL.bookmarkData(options: .withSecurityScope)`) in `UserDefaults` under `BRB.veilImageBookmark`.
   - [ ] Implement safe bookmark resolution (`startAccessingSecurityScopedResource()` / `stopAccessingSecurityScopedResource()`).
   - [ ] Handle unresolvable/stale bookmark fallback with user notice.
 - [ ] **Rendering & Asset Bundling:**
-  - [ ] Create default bundled asset image (dark gradient with *"BRB — stepped away"* wordmark).
+  - [ ] Create default bundled asset image (dark gradient with _"BRB — stepped away"_ wordmark).
   - [ ] Downscale and cache the image matching each screen's backing pixel dimensions.
   - [ ] Provide "Reset to default" button in settings.
 
 ---
 
 ## Phase 4: Lock Escalation & Post-Unlock Suppression
+
 - [ ] **Lock Escalation Action:**
   - [ ] Wire the veil's "Unlock with Mac Login" button to trigger macOS session lock (e.g. `SACLockScreenImmediate()` or private/system framework call).
   - [ ] Set `pendingManualUnlock` state flag prior to locking.
@@ -99,6 +103,7 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 ---
 
 ## Phase 5: Fail-Secure & App Lifecycle
+
 - [ ] **Fail-Secure Mechanism:**
   - [ ] `failSecureEnabled` setting (`UserDefaults`, default: `true`).
   - [ ] Hook `NSApplicationDelegate.applicationWillTerminate(_:)` to lock the Mac if `failSecureEnabled` is `true`.
@@ -110,6 +115,7 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 ---
 
 ## Phase 6: Onboarding & Settings UI
+
 - [ ] **3-Step Onboarding Flow (First Launch):**
   - [ ] Step 1: Bluetooth consent explanation (handling granted vs denied states).
   - [ ] Step 2: Live device discovery and one-tap TWS pinning.
@@ -126,6 +132,7 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 ---
 
 ## Phase 7: Testing & Acceptance Validation
+
 - [ ] Verify LE device pipeline using reference peripheral (mouse or earbuds).
 - [ ] Test distance variation: signal attenuation when walking away and recovery on return.
 - [ ] Verify multi-display veil behavior (all screens covered, screen Saver window level, no Mission Control leaks).

@@ -17,14 +17,18 @@ struct VeilView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let safeWidth = proxy.size.width > 0 ? proxy.size.width : (NSScreen.main?.frame.width ?? 1920)
+            let safeHeight = proxy.size.height > 0 ? proxy.size.height : (NSScreen.main?.frame.height ?? 1080)
+            let safeSize = CGSize(width: safeWidth, height: safeHeight)
+
             ZStack {
                 Color.black.ignoresSafeArea()
 
                 // Full-bleed cover image (Aspect-fill)
-                Image(nsImage: imageManager.effectiveImage(for: proxy.size))
+                Image(nsImage: imageManager.effectiveImage(for: safeSize))
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .frame(width: safeWidth, height: safeHeight)
                     .clipped()
 
                 // Bottom-anchored action button card
@@ -52,22 +56,15 @@ struct VeilView: View {
                         .buttonStyle(.plain)
 
                         Text("Locks this Mac — log back in to dismiss the cover for a while.")
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundColor(Color.white.opacity(0.65))
-
-                        if let reason, !reason.isEmpty {
-                            Text(reason)
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundColor(Color.white.opacity(0.40))
-                                .padding(.top, 2)
-                        }
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.7))
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 18)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
                     .background(.ultraThinMaterial.opacity(0.85))
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .cornerRadius(16)
                     .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
-                    .padding(.bottom, max(36, proxy.safeAreaInsets.bottom + 20))
+                    .padding(.bottom, 48)
                 }
             }
         }

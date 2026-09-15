@@ -11,8 +11,8 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 - [x] **Phase 2: Fullscreen Veil Window & Display Management**
 - [x] **Phase 3: Veil Image Storage & Rendering**
 - [x] **Phase 4: Lock Escalation & Post-Unlock Suppression**
-- [ ] **Phase 5: Fail-Secure & App Lifecycle**
-- [ ] **Phase 6: Onboarding & Settings UI**
+- [x] **Phase 5: Fail-Secure & App Lifecycle**
+- [x] **Phase 6: Onboarding & Settings UI**
 - [ ] **Phase 7: Testing & Acceptance Validation**
 
 ---
@@ -101,32 +101,33 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 
 ---
 
-## Phase 5: Fail-Secure & App Lifecycle
+## Phase 5: Fail-Secure & App Lifecycle _(Completed)_
 
-- [ ] **Fail-Secure Mechanism:**
-  - [ ] `failSecureEnabled` setting (`UserDefaults`, default: `true`).
-  - [ ] Hook `NSApplicationDelegate.applicationWillTerminate(_:)` to lock the Mac if `failSecureEnabled` is `true`.
-- [ ] **App Presentation Model:**
-  - [ ] Menu bar item (`NSStatusItem`) showing current connection / proximity status icon.
-  - [ ] Menu items: Current State, Monitored Device, Open Settings, Lock Mac Now, Quit.
-  - [ ] Support clean window toggling for Settings/Preferences.
+- [x] **Fail-Secure Mechanism:**
+  - [x] `failSecureEnabled` setting (`UserDefaults`, default: `true`).
+  - [x] Hook `NSApplicationDelegate.applicationWillTerminate(_:)` in `AppDelegate` to lock the Mac if `failSecureEnabled` is `true`.
+- [x] **App Presentation Model:**
+  - [x] Menu bar extra (`MenuBarExtra`) showing dynamic status icon based on proximity state (`near`, `far`, `gone`, `idle`).
+  - [x] Menu items: Real-time presence state, monitored device, live RSSI, "Lock Mac Now", "Open BRB Settings", "Quit BRB".
+  - [x] Seamless window opening and activation.
 
 ---
 
-## Phase 6: Onboarding & Settings UI
+## Phase 6: Onboarding & Settings UI _(Completed)_
 
-- [ ] **3-Step Onboarding Flow (First Launch):**
-  - [ ] Step 1: Bluetooth consent explanation (handling granted vs denied states).
-  - [ ] Step 2: Live device discovery and one-tap TWS pinning.
-  - [ ] Step 3: Away boundary calibration (~2m walk-away capture with `-80 dBm` default option).
-- [ ] **Settings UI:**
-  - [ ] **Device Tab:** Monitored device info, RSSI badge (`LE` / `LE-adv`), live dBm, sample age, nearby scanner.
-  - [ ] **Calibration & Thresholds:** Threshold sliders (Veil-On / Veil-Off) + "Recalibrate away boundary" action.
-  - [ ] **Cover Tab:** Image thumbnail preview, "Choose Image..." button, "Reset to Default", missing file alert.
-  - [ ] **Timers Tab:**
+- [x] **3-Step Onboarding Flow (First Launch):**
+  - [x] Step 1: Bluetooth consent explanation with status badge and system settings shortcut.
+  - [x] Step 2: Live earbud discovery and one-tap TWS pinning (`DevicePickerView`).
+  - [x] Step 3: Away boundary calibration (~2m walk-away capture with `-80 dBm` default option).
+- [x] **Settings UI:**
+  - [x] **Device Tab:** Monitored device info, presence badge, live dBm, smoothed dBm, sample freshness age, suppression banner, nearby scanner table.
+  - [x] **Screen Cover Tab:** Image thumbnail preview, "Choose Image…" button, "Reset to Default", test 3-second cover preview, missing file alert.
+  - [x] **Calibration Tab:** Threshold sliders (Veil-On / Veil-Off) with hysteresis band enforcement + "Calibrate away boundary" action + reset to defaults.
+  - [x] **Timers & Security Tab:**
     - Grace Delay stepper (5–60s, step 1s, default: 10s).
     - Suppress Window stepper (5–60 min, step 5 min, default: 15 min).
-  - [ ] **Security Tab:** Fail-secure toggle with disclaimer note.
+    - Fail-secure toggle with security disclaimer.
+    - "Re-run Onboarding Setup" action.
 
 ---
 

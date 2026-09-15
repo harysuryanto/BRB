@@ -19,6 +19,8 @@ struct AdvertSample: Codable {
 
 @Observable
 class ProximityManager {
+    static let shared = ProximityManager()
+
     // MARK: - Permissions & Engine Status
     var bluetoothPermission: String = "Checking…"
     var bluetoothGranted: Bool = false

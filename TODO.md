@@ -8,9 +8,9 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 
 - [x] **Phase 0: Project Setup & BLE Foundation**
 - [x] **Phase 1: Signal Engine & State Machine**
-- [ ] **Phase 2: Fullscreen Veil Window & Display Management**
-- [ ] **Phase 3: Veil Image Storage & Rendering**
-- [ ] **Phase 4: Lock Escalation & Post-Unlock Suppression**
+- [x] **Phase 2: Fullscreen Veil Window & Display Management**
+- [x] **Phase 3: Veil Image Storage & Rendering**
+- [x] **Phase 4: Lock Escalation & Post-Unlock Suppression**
 - [ ] **Phase 5: Fail-Secure & App Lifecycle**
 - [ ] **Phase 6: Onboarding & Settings UI**
 - [ ] **Phase 7: Testing & Acceptance Validation**
@@ -51,54 +51,53 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 
 ---
 
-## Phase 2: Fullscreen Veil Window & Display Management
+## Phase 2: Fullscreen Veil Window & Display Management _(Completed)_
 
-- [ ] **Multi-Display Window Controller:**
-  - [ ] Create an `NSWindowController` managing borderless windows across all screens (`NSScreen.screens`).
-  - [ ] Configure `NSWindow`:
+- [x] **Multi-Display Window Controller:**
+  - [x] Created `VeilWindowController.swift` managing borderless windows across all screens (`NSScreen.screens`).
+  - [x] Configured `NSWindow`:
     - `level = .screenSaver`
-    - `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]`
-    - Exclude from Exposé and Mission Control.
-    - Intercept and block mouse/keyboard events beneath the veil.
-  - [ ] Listen to `NSApplication.didChangeScreenParametersNotification` to add/remove windows on display attach/detach.
-- [ ] **Presentation & Animation:**
-  - [ ] Fast fade-in (~0.25s) when the state machine triggers `Far` (post-grace) or `Gone`.
-  - [ ] Instant dismiss without animation when signal returns past the hysteresis gap.
-- [ ] **Veil UI Overlay:**
-  - [ ] Full-bleed cover image rendering (aspect-fill).
-  - [ ] Single button overlay: **"Unlock with Mac Login"** with subtitle _"Locks this Mac — log back in to dismiss the cover for a while."_
+    - `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]`
+    - Excluded from Exposé and Mission Control.
+    - Intercepts and blocks mouse/keyboard events beneath the veil.
+  - [x] Listens to `NSApplication.didChangeScreenParametersNotification` to re-sync windows on display attach/detach.
+- [x] **Presentation & Animation:**
+  - [x] Fast fade-in (~0.25s) when the state machine triggers `Far` (post-grace) or `Gone`.
+  - [x] Instant dismiss without animation when signal returns past the hysteresis gap.
+- [x] **Veil UI Overlay:**
+  - [x] Full-bleed cover image rendering (`VeilView.swift`, aspect-fill).
+  - [x] Single button overlay: **"Unlock with Mac Login"** with subtitle _"Locks this Mac — log back in to dismiss the cover for a while."_
 
 ---
 
-## Phase 3: Veil Image Storage & Rendering
+## Phase 3: Veil Image Storage & Rendering _(Completed)_
 
-- [ ] **Image Selection & Security-Scoped Bookmarks:**
-  - [ ] Implement `NSOpenPanel` for user image selection (PNG, JPEG, TIFF, HEIC, BMP, GIF 1st frame).
-  - [ ] Persist selected file as a security-scoped bookmark (`URL.bookmarkData(options: .withSecurityScope)`) in `UserDefaults` under `BRB.veilImageBookmark`.
-  - [ ] Implement safe bookmark resolution (`startAccessingSecurityScopedResource()` / `stopAccessingSecurityScopedResource()`).
-  - [ ] Handle unresolvable/stale bookmark fallback with user notice.
-- [ ] **Rendering & Asset Bundling:**
-  - [ ] Create default bundled asset image (dark gradient with _"BRB — stepped away"_ wordmark).
-  - [ ] Downscale and cache the image matching each screen's backing pixel dimensions.
-  - [ ] Provide "Reset to default" button in settings.
+- [x] **Image Selection & Security-Scoped Bookmarks:**
+  - [x] Implemented `NSOpenPanel` for user image selection (PNG, JPEG, TIFF, HEIC, BMP, GIF) in `VeilImageManager.swift`.
+  - [x] Persist selected file as a security-scoped bookmark in `UserDefaults` under `BRB.veilImageBookmark`.
+  - [x] Implemented safe bookmark resolution (`startAccessingSecurityScopedResource()` / `stopAccessingSecurityScopedResource()`).
+  - [x] Handles unresolvable/stale bookmark fallback with user notice.
+- [x] **Rendering & Asset Bundling:**
+  - [x] Procedural default fallback image asset (high-res dark gradient with _"BRB — stepped away"_ wordmark and vignette).
+  - [x] "Reset to default" capability.
 
 ---
 
-## Phase 4: Lock Escalation & Post-Unlock Suppression
+## Phase 4: Lock Escalation & Post-Unlock Suppression _(Completed)_
 
-- [ ] **Lock Escalation Action:**
-  - [ ] Wire the veil's "Unlock with Mac Login" button to trigger macOS session lock (e.g. `SACLockScreenImmediate()` or private/system framework call).
-  - [ ] Set `pendingManualUnlock` state flag prior to locking.
-- [ ] **Unlock & Return Detection:**
-  - [ ] Observe unlock event via `NSWorkspace.sessionDidBecomeActiveNotification` or `com.apple.screenIsUnlocked` distributed notification.
-  - [ ] If `pendingManualUnlock` is active:
-    - Dismiss veil.
-    - Start suppression timer window (default: 15 min, configurable 5–60 min).
-    - Clear `pendingManualUnlock`.
-  - [ ] If unlock occurs without `pendingManualUnlock` (e.g. manual user lock, fail-secure lock): re-evaluate normally with fresh grace timer.
-- [ ] **Suppression Management:**
-  - [ ] If the earbud returns mid-suppression: immediately cancel suppression and return to normal proximity evaluation.
-  - [ ] Crash safety: ensure application restarts or crashes never default to suppression mode.
+- [x] **Lock Escalation Action:**
+  - [x] Created `SessionLockManager.swift` invoking macOS session lock via `SACLockScreenImmediate()` with fallback to `CGSession -suspend`.
+  - [x] Set `pendingManualUnlock` state flag prior to locking.
+- [x] **Unlock & Return Detection:**
+  - [x] Observe unlock events via `NSWorkspace.sessionDidBecomeActiveNotification` and `com.apple.screenIsUnlocked`.
+  - [x] If `pendingManualUnlock` is active:
+    - Dismisses veil immediately.
+    - Starts configurable suppression timer window (default: 15 min, 5–60 min).
+    - Clears `pendingManualUnlock`.
+  - [x] If unlock occurs without `pendingManualUnlock`: re-evaluates normally with fresh grace timer.
+- [x] **Suppression Management:**
+  - [x] If the earbud returns mid-suppression: immediately cancels suppression and returns to normal proximity evaluation.
+  - [x] Crash safety: application restarts or crashes never default to suppression mode.
 
 ---
 

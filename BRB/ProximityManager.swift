@@ -3,7 +3,8 @@
 //  BRB
 //
 //  Coordinates Bluetooth LE scanning, signal filtering (EMA), presence state
-//  transitions (Near / Far / Gone), grace delay timers, and threshold calibration.
+//  transitions (Near / Far / Gone), grace delay timers, threshold calibration,
+//  multi-display veil windows, and session lock escalation.
 //
 
 import CoreBluetooth
@@ -66,7 +67,16 @@ class ProximityManager {
     var presenceState: PresenceState = .idle
     var smoothedRSSI: Double? = nil
     var awayDuration: TimeInterval = 0
-    var isVeilActive: Bool = false
+    var isVeilActive: Bool = false {
+        didSet {
+            guard !Self.isPreview else { return }
+            if isVeilActive {
+                VeilWindowController.shared.showVeil(reason: veilReason)
+            } else {
+                VeilWindowController.shared.dismissVeilInstant()
+            }
+        }
+    }
     var veilReason: String? = nil
     var isStale: Bool = false
     var sampleAge: TimeInterval? = nil
@@ -99,6 +109,36 @@ class ProximityManager {
         self.suppressDuration = defaults.object(forKey: "BRB.suppressDuration") as? TimeInterval ?? 900.0 // 15 mins
         self.failSecureEnabled = defaults.object(forKey: "BRB.failSecureEnabled") as? Bool ?? true
         self.pinnedLEID = defaults.string(forKey: "BRB.pinnedLEID")
+
+        setupLockAndVeilCallbacks()
+    }
+
+    private func setupLockAndVeilCallbacks() {
+        guard !Self.isPreview else { return }
+
+        // Wire veil unlock action -> escalate to macOS session lock
+        VeilWindowController.shared.onUnlockRequested = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.pendingManualUnlock = true
+                SessionLockManager.shared.lockScreen()
+            }
+        }
+
+        // Wire screen unlock listener
+        SessionLockManager.shared.onSessionUnlocked = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.pendingManualUnlock {
+                    self.pendingManualUnlock = false
+                    self.startSuppression()
+                } else {
+                    // Normal evaluation with fresh grace delay
+                    self.awayDuration = 0
+                    self.isVeilActive = false
+                }
+            }
+        }
     }
 
     // MARK: - Lifecycle
@@ -193,6 +233,13 @@ class ProximityManager {
         timer = nil
         leReader?.stop()
         leReader = nil
+        isVeilActive = false
+    }
+
+    func handleAppTermination() {
+        if failSecureEnabled {
+            SessionLockManager.shared.lockScreen()
+        }
     }
 
     // MARK: - Engine Tick (0.5s interval)

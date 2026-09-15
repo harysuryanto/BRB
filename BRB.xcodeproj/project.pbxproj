@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		4FF3C6B73059750500178E96 /* BRB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BRB.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4FF3C67030594A8100178E96 /* BRB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BRB.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4FF3C6B93059750500178E96 /* BRB */ = {
+		4FF3C67230594A8100178E96 /* BRB */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = BRB;
 			sourceTree = "<group>";
@@ -19,7 +19,7 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		4FF3C6B43059750500178E96 /* Frameworks */ = {
+		4FF3C66D30594A8100178E96 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -29,18 +29,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		4FF3C6AE3059750500178E96 = {
+		4FF3C66730594A8100178E96 = {
 			isa = PBXGroup;
 			children = (
-				4FF3C6B93059750500178E96 /* BRB */,
-				4FF3C6B83059750500178E96 /* Products */,
+				4FF3C67230594A8100178E96 /* BRB */,
+				4FF3C67130594A8100178E96 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		4FF3C6B83059750500178E96 /* Products */ = {
+		4FF3C67130594A8100178E96 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4FF3C6B73059750500178E96 /* BRB.app */,
+				4FF3C67030594A8100178E96 /* BRB.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,64 +48,64 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4FF3C6B63059750500178E96 /* BRB */ = {
+		4FF3C66F30594A8100178E96 /* BRB */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4FF3C6C23059750700178E96 /* Build configuration list for PBXNativeTarget "BRB" */;
+			buildConfigurationList = 4FF3C67B30594A8200178E96 /* Build configuration list for PBXNativeTarget "BRB" */;
 			buildPhases = (
-				4FF3C6B33059750500178E96 /* Sources */,
-				4FF3C6B43059750500178E96 /* Frameworks */,
-				4FF3C6B53059750500178E96 /* Resources */,
+				4FF3C66C30594A8100178E96 /* Sources */,
+				4FF3C66D30594A8100178E96 /* Frameworks */,
+				4FF3C66E30594A8100178E96 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				4FF3C6B93059750500178E96 /* BRB */,
+				4FF3C67230594A8100178E96 /* BRB */,
 			);
 			name = BRB;
 			packageProductDependencies = (
 			);
 			productName = BRB;
-			productReference = 4FF3C6B73059750500178E96 /* BRB.app */;
+			productReference = 4FF3C67030594A8100178E96 /* BRB.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		4FF3C6AF3059750500178E96 /* Project object */ = {
+		4FF3C66830594A8100178E96 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
-					4FF3C6B63059750500178E96 = {
+					4FF3C66F30594A8100178E96 = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
 			};
-			buildConfigurationList = 4FF3C6B23059750500178E96 /* Build configuration list for PBXProject "BRB" */;
+			buildConfigurationList = 4FF3C66B30594A8100178E96 /* Build configuration list for PBXProject "BRB" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
-			mainGroup = 4FF3C6AE3059750500178E96;
+			mainGroup = 4FF3C66730594A8100178E96;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 4FF3C6B83059750500178E96 /* Products */;
+			productRefGroup = 4FF3C67130594A8100178E96 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4FF3C6B63059750500178E96 /* BRB */,
+				4FF3C66F30594A8100178E96 /* BRB */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		4FF3C6B53059750500178E96 /* Resources */ = {
+		4FF3C66E30594A8100178E96 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -115,7 +115,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		4FF3C6B33059750500178E96 /* Sources */ = {
+		4FF3C66C30594A8100178E96 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -125,7 +125,7 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		4FF3C6C03059750700178E96 /* Debug */ = {
+		4FF3C67930594A8200178E96 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -144,7 +144,6 @@
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
@@ -188,14 +187,12 @@
 			};
 			name = Debug;
 		};
-		4FF3C6C13059750700178E96 /* Release */ = {
+		4FF3C67A30594A8200178E96 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -243,7 +240,7 @@
 			};
 			name = Release;
 		};
-		4FF3C6C33059750700178E96 /* Debug */ = {
+		4FF3C67C30594A8200178E96 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -251,19 +248,18 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "BRB reads your headset's Bluetooth signal strength to tell when you step away from the Mac.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.harysuryanto.BRB;
+				PRODUCT_BUNDLE_IDENTIFIER = com.harysuryanto.brb;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -273,7 +269,7 @@
 			};
 			name = Debug;
 		};
-		4FF3C6C43059750700178E96 /* Release */ = {
+		4FF3C67D30594A8200178E96 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -281,19 +277,18 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "BRB reads your headset's Bluetooth signal strength to tell when you step away from the Mac.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.harysuryanto.BRB;
+				PRODUCT_BUNDLE_IDENTIFIER = com.harysuryanto.brb;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -306,25 +301,25 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		4FF3C6B23059750500178E96 /* Build configuration list for PBXProject "BRB" */ = {
+		4FF3C66B30594A8100178E96 /* Build configuration list for PBXProject "BRB" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				4FF3C6C03059750700178E96 /* Debug */,
-				4FF3C6C13059750700178E96 /* Release */,
+				4FF3C67930594A8200178E96 /* Debug */,
+				4FF3C67A30594A8200178E96 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4FF3C6C23059750700178E96 /* Build configuration list for PBXNativeTarget "BRB" */ = {
+		4FF3C67B30594A8200178E96 /* Build configuration list for PBXNativeTarget "BRB" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				4FF3C6C33059750700178E96 /* Debug */,
-				4FF3C6C43059750700178E96 /* Release */,
+				4FF3C67C30594A8200178E96 /* Debug */,
+				4FF3C67D30594A8200178E96 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 4FF3C6AF3059750500178E96 /* Project object */;
+	rootObject = 4FF3C66830594A8100178E96 /* Project object */;
 }

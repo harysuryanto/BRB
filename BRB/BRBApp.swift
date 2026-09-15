@@ -1,8 +1,6 @@
 //
 //  BRBApp.swift
-//  BRB
-//
-//  Created by Hary Suryanto on 15/09/26.
+//  BRB — Step away. Your screen covers itself.
 //
 
 import SwiftUI
@@ -13,5 +11,6 @@ struct BRBApp: App {
         WindowGroup {
             ContentView()
         }
+        .windowResizability(.contentSize)
     }
 }

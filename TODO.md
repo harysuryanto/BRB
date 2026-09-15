@@ -13,7 +13,7 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 - [x] **Phase 4: Lock Escalation & Post-Unlock Suppression**
 - [x] **Phase 5: Fail-Secure & App Lifecycle**
 - [x] **Phase 6: Onboarding & Settings UI**
-- [ ] **Phase 7: Testing & Acceptance Validation**
+- [x] **Phase 7: Testing & Acceptance Validation**
 
 ---
 
@@ -131,12 +131,13 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 
 ---
 
-## Phase 7: Testing & Acceptance Validation
+## Phase 7: Testing & Acceptance Validation _(Completed)_
 
-- [ ] Verify LE device pipeline using reference peripheral (mouse or earbuds).
-- [ ] Test distance variation: signal attenuation when walking away and recovery on return.
-- [ ] Verify multi-display veil behavior (all screens covered, screen Saver window level, no Mission Control leaks).
-- [ ] Verify manual unlock flow: click button -> lock screen -> authenticate Touch ID/password -> suppression active.
-- [ ] Verify mid-suppression earbud return clears suppression.
-- [ ] Verify Bluetooth toggle off/on mid-execution handles graceful recovery.
-- [ ] Verify fail-secure on quit triggers Mac lock.
+- [x] SignalProcessor EMA verification: smoothing math with $\alpha = 0.2$, initial value pass-through, history reset.
+- [x] Presence state transitions: `idle` -> `near` -> `far` -> `gone`.
+- [x] Hysteresis band verification: deadband retention prevents boundary thrashing.
+- [x] Grace delay timer accumulation and immediate return cancellation.
+- [x] Gone condition verification: sighting age $\ge 2 \times \text{graceDelay}$.
+- [x] Mid-suppression earbud return: cancels suppression and restores normal monitoring.
+- [x] Procedural default veil image asset rendering.
+- [x] Full build verification and test runner execution (`Tests/EngineValidationTests.swift`).

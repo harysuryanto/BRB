@@ -53,7 +53,11 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if !hasCompletedOnboarding && manager.pinnedLEID == nil {
+            // Onboarding shows exactly once, until Finish is tapped.
+            // Never gate on pin state: pinning mid-onboarding used to jump
+            // to settings (skipping Finish), and unpinning then dropped back
+            // to the permission step even though consent was granted.
+            if !hasCompletedOnboarding {
                 OnboardingView(manager: manager) {
                     hasCompletedOnboarding = true
                 }

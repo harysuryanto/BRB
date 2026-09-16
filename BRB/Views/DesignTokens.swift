@@ -53,6 +53,10 @@ enum DS {
     static let deviceArtSize: CGFloat = 64
     static let deviceGridSpacing: CGFloat = 12
 
+    // MARK: - Cover preview cards (Onboarding Step 3)
+    /// Fixed narrow width so the cards read portrait (height > width).
+    static let coverPreviewCardWidth: CGFloat = 150
+
     // MARK: - Veil (fullscreen exception: dark aesthetic stays,
     // only internal button metrics are normalised)
     enum Veil {

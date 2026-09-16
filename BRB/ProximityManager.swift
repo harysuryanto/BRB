@@ -86,15 +86,25 @@ class ProximityManager {
     var awayDuration: TimeInterval = 0
     var isVeilActive: Bool = false {
         didSet {
-            guard !Self.isPreview else { return }
-            // Test preview drives windows directly — engine must not tear it down.
-            guard !VeilWindowController.shared.isPreviewActive else { return }
-            if isVeilActive {
-                VeilWindowController.shared.showVeil(reason: veilReason)
-            } else {
-                VeilWindowController.shared.dismissVeilInstant()
-            }
+            reconcileVeilPresentation()
         }
+    }
+    /// Single choke point for veil windows. State (`isVeilActive`) evaluates
+    /// freely at all times; presentation additionally requires onboarding
+    /// completion — so setup can never fullscreen-shock the user, with zero
+    /// view-layer writes. Called from `isVeilActive.didSet` (immediacy), the
+    /// engine tick (covers open-mid-veil / finish-while-away no-refire cases),
+    /// and onboarding submit.
+    private func reconcileVeilPresentation() {
+        guard !Self.isPreview else { return }
+        // Test preview drives windows directly — engine must not tear it down.
+        guard !VeilWindowController.shared.isPreviewActive else { return }
+        guard UserDefaults.standard.bool(forKey: "BRB.hasCompletedOnboarding"),
+              isVeilActive else {
+            VeilWindowController.shared.dismissVeilInstant()
+            return
+        }
+        VeilWindowController.shared.showVeil(reason: veilReason)
     }
     var veilReason: String? = nil
     var isStale: Bool = false
@@ -398,6 +408,10 @@ class ProximityManager {
 
         // 8. Presence state evaluation
         evaluatePresenceState()
+
+        // 9. Keep windows in sync (no-refire cases: onboarding opened
+        // mid-veil, setup finished while away).
+        reconcileVeilPresentation()
     }
 
     private var isSampleFresh: Bool {
@@ -498,6 +512,21 @@ class ProximityManager {
         resetStateAndFilter()
         leReader?.stop()
         leReader?.start(targetName: "", pinnedID: nil)
+    }
+
+    // MARK: - Onboarding Submit
+    /// The one and only write path from onboarding (the "submit" button).
+    /// Applies the draft atomically: thresholds persist via didSets, pinning
+    /// persists the identifier and attaches the link (reset clears histories
+    /// but never thresholds). Fresh pins always re-accumulate grace.
+    /// Quitting before this runs leaves live state byte-identical.
+    func commitOnboardingDraft(pinnedID: String?, veilOn: Double, veilOff: Double) {
+        guard !Self.isPreview else { return }
+        veilOnThreshold = veilOn
+        veilOffThreshold = veilOff
+        if let pinnedID { pinLEDevice(id: pinnedID) }
+        UserDefaults.standard.set(true, forKey: "BRB.hasCompletedOnboarding")
+        reconcileVeilPresentation()
     }
 
     private func resetStateAndFilter() {

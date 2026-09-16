@@ -226,11 +226,24 @@ struct SignalBarsView: View {
     }
 }
 
+/// Live settings list vs. onboarding draft list. Draft copy never promises
+/// monitoring — selection is only submitted on Finish.
+enum PickerMode {
+    case live
+    case draft
+}
+
 struct DeviceCardView: View {
     var id: String
     var sample: AdvertSample
-    var isPinned: Bool
+    var isSelected: Bool
+    var mode: PickerMode = .live
     var action: () -> Void
+
+    private var pillText: String { mode == .live ? "Monitored" : "Selected" }
+    private var toggleHint: String {
+        mode == .live ? "Tap again to unpin" : "Tap again to deselect"
+    }
 
     var body: some View {
         let stale = isStaleSample(sample)
@@ -238,7 +251,7 @@ struct DeviceCardView: View {
             VStack(spacing: DS.spacingSM) {
                 ZStack(alignment: .topTrailing) {
                     DeviceArtView(name: sample.name)
-                    if isPinned {
+                    if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 20))
                             .foregroundColor(.accentColor)
@@ -265,27 +278,34 @@ struct DeviceCardView: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
 
-                // Pinned affordance rows are always rendered (hidden when unpinned)
-                // so every card measures the same height and the grid stays uniform.
-                DSPill(text: "Monitored", tint: .green)
-                    .opacity(isPinned ? 1 : 0)
-                    .accessibilityHidden(!isPinned)
-                Text(isPinned ? "Tap again to unpin" : " ")
+                // Selection affordance rows are always rendered (hidden when
+                // unselected) so every card measures the same height and the
+                // grid stays uniform.
+                DSPill(text: pillText, tint: .green)
+                    .opacity(isSelected ? 1 : 0)
+                    .accessibilityHidden(!isSelected)
+                Text(isSelected ? toggleHint : " ")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .accessibilityHidden(!isPinned)
+                    .accessibilityHidden(!isSelected)
             }
             .frame(maxWidth: .infinity)
             .padding(DS.cardPad)
-            .background(isPinned ? Color.accentColor.opacity(0.08) : DS.cardBg)
+            .background(isSelected ? Color.accentColor.opacity(0.08) : DS.cardBg)
             .cornerRadius(DS.radius)
-            .opacity(stale && !isPinned ? 0.6 : 1.0)
+            .opacity(stale && !isSelected ? 0.6 : 1.0)
         }
         .buttonStyle(.plain)
-        .help(isPinned ? "Monitored — click again to unpin" : "Monitor this device")
-        .accessibilityLabel(isPinned
-            ? "Monitored, \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm. Activate to unpin."
-            : "Monitor \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm.")
+        .help(mode == .live
+              ? (isSelected ? "Monitored — click again to unpin" : "Monitor this device")
+              : (isSelected ? "Selected — click again to deselect" : "Select this device"))
+        .accessibilityLabel(mode == .live
+            ? (isSelected
+               ? "Monitored, \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm. Activate to unpin."
+               : "Monitor \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm.")
+            : (isSelected
+               ? "Selected, \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm. Activate to deselect."
+               : "Select \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm."))
         .contextMenu {
             Button("Copy device ID") {
                 NSPasteboard.general.clearContents()
@@ -299,11 +319,25 @@ struct DeviceCardView: View {
 
 struct DevicePickerView: View {
     let manager: ProximityManager
+    /// Selection override for draft contexts (onboarding): when set, cards
+    /// highlight/toggle this id instead of the live pin, so picking writes
+    /// no live state. Nil (settings) = follow the live pin directly.
+    var selectedID: String? = nil
+    var onToggle: ((String) -> Void)? = nil
+    var mode: PickerMode = .live
 
     private let columns = [
         GridItem(.flexible(), spacing: DS.deviceGridSpacing),
         GridItem(.flexible(), spacing: DS.deviceGridSpacing),
     ]
+
+    private var effectiveSelectedID: String? { selectedID ?? manager.pinnedLEID }
+
+    private func toggle(_ id: String) {
+        if let onToggle { onToggle(id); return }
+        if manager.pinnedLEID == id { manager.unpinLEDevice() }
+        else { manager.pinLEDevice(id: id) }
+    }
 
     var body: some View {
         let ids = sortedDeviceIDs(manager)
@@ -337,10 +371,10 @@ struct DevicePickerView: View {
                             DeviceCardView(
                                 id: id,
                                 sample: s,
-                                isPinned: manager.pinnedLEID == id
+                                isSelected: effectiveSelectedID == id,
+                                mode: mode
                             ) {
-                                if manager.pinnedLEID == id { manager.unpinLEDevice() }
-                                else { manager.pinLEDevice(id: id) }
+                                toggle(id)
                             }
                             .transition(.asymmetric(
                                 insertion: .scale(scale: 0.85).combined(with: .opacity),
@@ -349,7 +383,9 @@ struct DevicePickerView: View {
                         }
                     }
                 }
-                Text("Tap a card to monitor — named A–Z, unnamed at the end.")
+                Text(mode == .live
+                      ? "Tap a card to monitor — named A–Z, unnamed at the end."
+                      : "Tap a card to select it — nothing is monitored until you finish setup.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

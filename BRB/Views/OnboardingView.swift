@@ -18,6 +18,61 @@ struct OnboardingView: View {
     @State private var currentStep: Int = 1
     @State private var calibrationCaptured: Double? = nil
 
+    // MARK: - Draft (registration form — nothing here touches live state
+    // until Finish submits via commitOnboardingDraft).
+    @State private var draftPinnedID: String?
+    @State private var draftVeilOn: Double
+    @State private var draftVeilOff: Double
+    /// Instant preview state (no grace — see draftReading below).
+    @State private var previewCoverOn: Bool = false
+
+    init(manager: ProximityManager = .shared, onComplete: @escaping () -> Void) {
+        self.manager = manager
+        self.onComplete = onComplete
+        // Prefill from live so re-runs open as an edit form, not blank.
+        _draftPinnedID = State(initialValue: manager.pinnedLEID)
+        _draftVeilOn = State(initialValue: manager.veilOnThreshold)
+        _draftVeilOff = State(initialValue: manager.veilOffThreshold)
+    }
+
+    /// Live advert sample for the DRAFT pick (read-only scan data — the draft
+    /// device is never pinned, so engine liveRSSI may belong to a stranger).
+    private var draftSample: AdvertSample? {
+        guard let id = draftPinnedID else { return nil }
+        return manager.leAdverts[id]
+    }
+
+    /// Instant preview reading: advert RSSI, nil when absent/stale. Updated
+    /// per packet — deliberately no grace delay (setup is not live yet).
+    private var draftReading: Int? {
+        guard let s = draftSample,
+              Date().timeIntervalSince(s.at) < 12 else { return nil }
+        return s.rssi
+    }
+
+    private var draftIsStale: Bool {
+        guard let id = draftPinnedID,
+              let s = manager.leAdverts[id] else { return true }
+        return Date().timeIntervalSince(s.at) >= 12
+    }
+
+    private func applyPreview(reading: Int?) {
+        guard let reading else { previewCoverOn = false; return }
+        if reading <= Int(draftVeilOn.rounded()) { previewCoverOn = true }
+        else if reading >= Int(draftVeilOff.rounded()) { previewCoverOn = false }
+        // Between: hold last (hysteresis gap, no flicker).
+    }
+
+    private var previewReason: String {
+        guard draftPinnedID != nil else { return "Pick a device in the previous step to preview." }
+        guard let s = draftSample else { return "Waiting for signal…" }
+        if Date().timeIntervalSince(s.at) >= 12 { return "Signal stale — move the bud to refresh." }
+        if previewCoverOn {
+            return "Signal \(s.rssi) dBm is below your \(Int(draftVeilOn)) dBm boundary."
+        }
+        return "Signal \(s.rssi) dBm is above your \(Int(draftVeilOn)) dBm boundary."
+    }
+
     var body: some View {
         VStack(spacing: DS.wizardSpacing) {
             // Header
@@ -38,19 +93,20 @@ struct OnboardingView: View {
 
             Divider()
 
-            // Step Content
-            switch currentStep {
-            case 1:
-                permissionStep
-            case 2:
-                deviceStep
-            case 3:
-                calibrationStep
-            default:
-                EmptyView()
+            // Step Content (scrollable — the device grid can exceed the
+            // fixed window height; header/footer stay pinned).
+            ScrollView {
+                switch currentStep {
+                case 1:
+                    permissionStep
+                case 2:
+                    deviceStep
+                case 3:
+                    calibrationStep
+                default:
+                    EmptyView()
+                }
             }
-
-            Spacer(minLength: 0)
 
             Divider()
 
@@ -75,10 +131,10 @@ struct OnboardingView: View {
                         withAnimation { currentStep = 3 }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(manager.pinnedLEID == nil)
+                    .disabled(draftPinnedID == nil)
                 } else if currentStep == 3 {
                     Button("Finish Setup") {
-                        UserDefaults.standard.set(true, forKey: "BRB.hasCompletedOnboarding")
+                        manager.commitOnboardingDraft(pinnedID: draftPinnedID, veilOn: draftVeilOn, veilOff: draftVeilOff)
                         onComplete()
                     }
                     .buttonStyle(.borderedProminent)
@@ -141,10 +197,11 @@ struct OnboardingView: View {
                 .font(.body)
                 .foregroundColor(.secondary)
 
-            if let pinned = manager.pinnedName {
+            if let id = draftPinnedID {
+                let name = manager.leAdverts[id]?.name ?? String(id.prefix(8))
                 HStack {
-                    DeviceArtView(name: pinned, size: 32)
-                    Text("Pinned device: **\(pinned)**")
+                    DeviceArtView(name: name, size: 32)
+                    Text("Selected device: **\(name)**")
                         .font(.subheadline)
                     Spacer()
                     Image(systemName: "checkmark.circle.fill")
@@ -155,7 +212,12 @@ struct OnboardingView: View {
                 .cornerRadius(DS.radius)
             }
 
-            DevicePickerView(manager: manager)
+            DevicePickerView(
+                manager: manager,
+                selectedID: draftPinnedID,
+                onToggle: { draftPinnedID = ($0 == draftPinnedID) ? nil : $0 },
+                mode: .draft
+            )
         }
     }
 
@@ -175,8 +237,8 @@ struct OnboardingView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
-                    if let rssi = manager.liveRSSI {
-                        Text("\(rssi) dBm (\(manager.liveKind))")
+                    if let s = draftSample {
+                        Text("\(s.rssi) dBm (LE-adv)")
                             .font(.system(.subheadline, design: .monospaced).bold())
                     } else {
                         Text("Waiting for signal…")
@@ -186,11 +248,11 @@ struct OnboardingView: View {
                 }
 
                 HStack {
-                    Text("Current Away Threshold:")
+                    Text("Draft Away Threshold:")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text("\(Int(manager.veilOnThreshold)) dBm")
+                    Text("\(Int(draftVeilOn)) dBm")
                         .font(.system(.subheadline, design: .monospaced).bold())
                 }
             }
@@ -200,13 +262,16 @@ struct OnboardingView: View {
 
             HStack(spacing: DS.spacingMD) {
                 Button("Capture Away Boundary (~2m)") {
-                    manager.calibrateAwayBoundary()
-                    calibrationCaptured = manager.veilOnThreshold
+                    let ref = Double(draftSample?.rssi ?? -80)
+                    draftVeilOn = ref
+                    draftVeilOff = ref + 10.0
+                    calibrationCaptured = ref
                 }
                 .buttonStyle(.bordered)
 
                 Button("Use Recommended Default (-80 dBm)") {
-                    manager.resetThresholdsToDefault()
+                    draftVeilOn = -80.0
+                    draftVeilOff = -70.0
                     calibrationCaptured = -80.0
                 }
                 .buttonStyle(.borderless)
@@ -220,13 +285,71 @@ struct OnboardingView: View {
                 )
             }
 
-            if let pauseLeft = manager.calibrationPauseRemaining {
-                DSBanner(
-                    icon: "pause.circle.fill",
-                    text: "Veil paused (\(Int(ceil(pauseLeft)))s) — walk back to your desk, then finish setup.",
-                    tint: .blue
-                )
+            Text("Live preview — instant, no grace delay. The real fullscreen cover stays off during setup.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            CoverPreviewCards(isActive: previewCoverOn)
+
+            Text(previewReason)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .onChange(of: draftReading) { _, reading in applyPreview(reading: reading) }
+        .onChange(of: draftIsStale) { _, stale in
+            if stale { previewCoverOn = false } else { applyPreview(reading: draftReading) }
+        }
+        .onChange(of: draftPinnedID) { _, _ in previewCoverOn = false }
+    }
+}
+
+// MARK: - Cover preview cards (gentle preview — no fullscreen during setup)
+
+/// Two side-by-side cards showing the cover states. Whichever matches the
+/// live state pulses (sine-driven via TimelineView, so it animates correctly
+/// from the very first frame — repeatForever only starts on a value *change*
+/// and would leave the initially-active card static); the other dims.
+/// Used in onboarding Step 3 so calibration never fullscreen-shocks the user.
+private struct CoverPreviewCards: View {
+    var isActive: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            // 0…1 breathing phase, ~1.8s period.
+            let pulse = 0.5 + 0.5 * sin(context.date.timeIntervalSinceReferenceDate * 2 * .pi / 1.8)
+            HStack(spacing: DS.spacingMD) {
+                Spacer(minLength: 0)
+                previewCard(title: "Cover Off", subtitle: "Screens visible", icon: "eye", tint: .green, active: !isActive, pulse: pulse)
+                previewCard(title: "Cover On", subtitle: "Screens hidden", icon: "eye.slash", tint: .orange, active: isActive, pulse: pulse)
+                Spacer(minLength: 0)
             }
         }
+    }
+
+    private func previewCard(title: String, subtitle: String, icon: String, tint: Color, active: Bool, pulse: Double) -> some View {
+        VStack(spacing: DS.spacingSM) {
+            Image(systemName: icon)
+                .font(.system(size: 28))
+                .foregroundColor(tint)
+            Text(title)
+                .font(.subheadline.bold())
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(width: DS.coverPreviewCardWidth)
+        .padding(DS.cardPad)
+        .background(tint.opacity(active ? 0.15 : 0.06))
+        .cornerRadius(DS.radius)
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.radius)
+                .stroke(tint.opacity(active ? 0.6 : 0.15), lineWidth: active ? 2 : 1)
+        )
+        .opacity(active ? 1.0 : 0.6)
+        .scaleEffect(active ? 1.0 + 0.03 * pulse : 1.0)
+        .shadow(color: tint.opacity(active ? 0.45 * pulse : 0), radius: active ? 10 : 0)
+        .animation(.easeOut(duration: 0.25), value: active)
+        .accessibilityLabel("\(title), \(subtitle)\(active ? ", current state" : "")")
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }

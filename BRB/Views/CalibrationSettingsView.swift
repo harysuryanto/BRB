@@ -75,13 +75,13 @@ struct CalibrationSettingsView: View {
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Button("Reset to Defaults (-80 / -70 dBm)") {
+                    Button("Reset to Defaults (-80 / -74 dBm)") {
                         manager.resetThresholdsToDefault()
                     }
                     .buttonStyle(.bordered)
                 }
 
-                Text("Stand where you'd like the veil to activate, then click 'Calibrate Away Boundary'. Veil-On will set to that dBm and Veil-Off to +10 dBm.")
+                Text("Stand where you'd like the veil to activate, then click 'Calibrate Away Boundary'. Veil-On will set to that dBm and Veil-Off to +6 dBm.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

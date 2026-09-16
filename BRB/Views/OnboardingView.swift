@@ -231,47 +231,20 @@ struct OnboardingView: View {
                 .font(.body)
                 .foregroundColor(.secondary)
 
-            VStack(alignment: .leading, spacing: DS.spacingSM) {
-                HStack {
-                    Text("Live Earbud Signal:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if let s = draftSample {
-                        Text("\(s.rssi) dBm (LE-adv)")
-                            .font(.system(.subheadline, design: .monospaced).bold())
-                    } else {
-                        Text("Waiting for signal…")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                HStack {
-                    Text("Draft Away Threshold:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(Int(draftVeilOn)) dBm")
-                        .font(.system(.subheadline, design: .monospaced).bold())
-                }
-            }
-            .padding(DS.cardPad)
-            .background(DS.emphasisBg())
-            .cornerRadius(DS.radius)
+            SignalBarView(reading: draftReading, boundary: draftVeilOn, previewOn: previewCoverOn)
 
             HStack(spacing: DS.spacingMD) {
                 Button("Capture Away Boundary (~2m)") {
                     let ref = Double(draftSample?.rssi ?? -80)
                     draftVeilOn = ref
-                    draftVeilOff = ref + 10.0
+                    draftVeilOff = ref + 6.0
                     calibrationCaptured = ref
                 }
                 .buttonStyle(.bordered)
 
                 Button("Use Recommended Default (-80 dBm)") {
                     draftVeilOn = -80.0
-                    draftVeilOff = -70.0
+                    draftVeilOff = -74.0
                     calibrationCaptured = -80.0
                 }
                 .buttonStyle(.borderless)
@@ -289,8 +262,6 @@ struct OnboardingView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            CoverPreviewCards(isActive: previewCoverOn)
-
             Text(previewReason)
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -303,53 +274,122 @@ struct OnboardingView: View {
     }
 }
 
-// MARK: - Cover preview cards (gentle preview — no fullscreen during setup)
+// MARK: - Signal bar (live setup gauge — no fullscreen during setup)
 
-/// Two side-by-side cards showing the cover states. Whichever matches the
-/// live state pulses (sine-driven via TimelineView, so it animates correctly
-/// from the very first frame — repeatForever only starts on a value *change*
-/// and would leave the initially-active card static); the other dims.
-/// Used in onboarding Step 3 so calibration never fullscreen-shocks the user.
-private struct CoverPreviewCards: View {
-    var isActive: Bool
+/// Straight horizontal gauge mapping draft advert RSSI to person position:
+/// left = near (strong), right = far (weak). Fixed −50…−95 dBm window (same
+/// bounds as the Calibration sliders), so the boundary tick visibly travels
+/// when you Capture or reset. Instant (no grace): setup is not live yet.
+/// The human needle glides per packet.
+private struct SignalBarView: View {
+    var reading: Int?
+    var boundary: Double
+    var previewOn: Bool
+
+    private let minV: Double = -95
+    private let maxV: Double = -50
+
+    private func fraction(_ rssi: Double) -> Double {
+        min(1, max(0, (rssi - minV) / (maxV - minV)))
+    }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-            // 0…1 breathing phase, ~1.8s period.
-            let pulse = 0.5 + 0.5 * sin(context.date.timeIntervalSinceReferenceDate * 2 * .pi / 1.8)
-            HStack(spacing: DS.spacingMD) {
-                Spacer(minLength: 0)
-                previewCard(title: "Cover Off", subtitle: "Screens visible", icon: "eye", tint: .green, active: !isActive, pulse: pulse)
-                previewCard(title: "Cover On", subtitle: "Screens hidden", icon: "eye.slash", tint: .orange, active: isActive, pulse: pulse)
-                Spacer(minLength: 0)
+        VStack(spacing: DS.spacingSM) {
+            HStack {
+                Text("Live Signal")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                if let reading {
+                    Text("\(reading) dBm")
+                        .font(.system(.subheadline, design: .monospaced).bold())
+                } else {
+                    Text("—")
+                        .font(.system(.subheadline, design: .monospaced).bold())
+                        .foregroundColor(.secondary)
+                }
+                DSPill(text: previewOn ? "Cover On" : "Cover Off", tint: previewOn ? .orange : .green)
+            }
+
+            GeometryReader { geo in
+                let w = geo.size.width
+                let bx = (1 - fraction(boundary)) * w
+                ZStack(alignment: .topLeading) {
+                    // Zone bar with a hard stop at the boundary.
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(zoneFill(total: w, split: bx))
+                        .frame(height: 10)
+                        .offset(y: 34)
+                    // Boundary tick.
+                    Rectangle()
+                        .fill(Color.primary)
+                        .frame(width: 2, height: 18)
+                        .offset(x: bx - 1, y: 30)
+                    // Human needle.
+                    if let reading {
+                        Image(systemName: "figure.walk")
+                            .font(.system(size: 24))
+                            .foregroundColor(previewOn ? .orange : .green)
+                            .offset(x: (1 - fraction(Double(reading))) * w - 12, y: 2)
+                            // Slow glide (packets retarget several×/s): reads as
+                            // a person walking, not a needle jumping.
+                            .animation(.easeInOut(duration: 0.9), value: reading)
+                    }
+                }
+            }
+            .frame(height: 50)
+            // Boundary tick and zones glide when Capture/Default moves it.
+            .animation(.easeOut(duration: 0.3), value: boundary)
+
+            HStack {
+                Text("Near \(Int(maxV))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(Int(boundary))")
+                    .font(.system(.caption, design: .monospaced).bold())
+                Spacer()
+                Text("Far \(Int(minV))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
+        .padding(DS.cardPad)
+        .background(DS.emphasisBg())
+        .cornerRadius(DS.radius)
+        .animation(.easeOut(duration: 0.25), value: previewOn)
     }
 
-    private func previewCard(title: String, subtitle: String, icon: String, tint: Color, active: Bool, pulse: Double) -> some View {
-        VStack(spacing: DS.spacingSM) {
-            Image(systemName: icon)
-                .font(.system(size: 28))
-                .foregroundColor(tint)
-            Text(title)
-                .font(.subheadline.bold())
-            Text(subtitle)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(width: DS.coverPreviewCardWidth)
-        .padding(DS.cardPad)
-        .background(tint.opacity(active ? 0.15 : 0.06))
-        .cornerRadius(DS.radius)
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.radius)
-                .stroke(tint.opacity(active ? 0.6 : 0.15), lineWidth: active ? 2 : 1)
+    private func zoneFill(total w: CGFloat, split bx: CGFloat) -> LinearGradient {
+        let f = w > 0 ? Double(bx / w) : 0.5
+        let near: Color = reading == nil ? .secondary : .green
+        let far: Color = reading == nil ? .secondary : .orange
+        return LinearGradient(
+            stops: [
+                .init(color: near.opacity(previewOn ? 0.35 : 1.0), location: 0),
+                .init(color: near.opacity(previewOn ? 0.35 : 1.0), location: f),
+                .init(color: far.opacity(previewOn ? 1.0 : 0.35), location: f),
+                .init(color: far.opacity(previewOn ? 1.0 : 0.35), location: 1),
+            ],
+            startPoint: .leading, endPoint: .trailing
         )
-        .opacity(active ? 1.0 : 0.6)
-        .scaleEffect(active ? 1.0 + 0.03 * pulse : 1.0)
-        .shadow(color: tint.opacity(active ? 0.45 * pulse : 0), radius: active ? 10 : 0)
-        .animation(.easeOut(duration: 0.25), value: active)
-        .accessibilityLabel("\(title), \(subtitle)\(active ? ", current state" : "")")
-        .accessibilityAddTraits(active ? .isSelected : [])
     }
+}
+
+#Preview("Signal Bar — Near") {
+    SignalBarView(reading: -62, boundary: -80, previewOn: false)
+        .padding()
+        .frame(width: 560)
+}
+
+#Preview("Signal Bar — Far") {
+    SignalBarView(reading: -88, boundary: -80, previewOn: true)
+        .padding()
+        .frame(width: 560)
+}
+
+#Preview("Signal Bar — Waiting") {
+    SignalBarView(reading: nil, boundary: -80, previewOn: false)
+        .padding()
+        .frame(width: 560)
 }

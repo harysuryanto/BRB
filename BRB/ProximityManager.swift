@@ -163,7 +163,7 @@ class ProximityManager {
     init() {
         let defaults = UserDefaults.standard
         self.veilOnThreshold = defaults.object(forKey: "BRB.veilOnThreshold") as? Double ?? -80.0
-        self.veilOffThreshold = defaults.object(forKey: "BRB.veilOffThreshold") as? Double ?? -70.0
+        self.veilOffThreshold = defaults.object(forKey: "BRB.veilOffThreshold") as? Double ?? -74.0
         self.graceDelay = defaults.object(forKey: "BRB.graceDelay") as? TimeInterval ?? 10.0
         self.suppressDuration = defaults.object(forKey: "BRB.suppressDuration") as? TimeInterval ?? 900.0 // 15 mins
         self.failSecureEnabled = defaults.object(forKey: "BRB.failSecureEnabled") as? Bool ?? true
@@ -552,13 +552,13 @@ class ProximityManager {
     func calibrateAwayBoundary(currentRSSI: Double? = nil) {
         let reference = currentRSSI ?? smoothedRSSI ?? (liveRSSI != nil ? Double(liveRSSI!) : -80.0)
         veilOnThreshold = reference
-        veilOffThreshold = reference + 10.0
+        veilOffThreshold = reference + 6.0
         startCalibrationPause()
     }
 
     func resetThresholdsToDefault() {
         veilOnThreshold = -80.0
-        veilOffThreshold = -70.0
+        veilOffThreshold = -74.0
         startCalibrationPause()
     }
 

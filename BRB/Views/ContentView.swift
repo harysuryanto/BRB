@@ -98,6 +98,14 @@ struct ContentView: View {
     // MARK: - Device Tab
     private var deviceTab: some View {
         VStack(alignment: .leading, spacing: DS.spacingLG) {
+            if manager.protectionPaused {
+                DSBanner(
+                    icon: "pause.circle",
+                    text: "Protection paused — the cover will not activate until resumed.",
+                    tint: .orange
+                )
+            }
+
             // 1. Live Presence Status Card
             HStack(alignment: .center, spacing: DS.spacingLG) {
                 ZStack {
@@ -164,6 +172,24 @@ struct ContentView: View {
             }
             .padding(DS.cardPad)
             .background(DS.emphasisBg())
+            .cornerRadius(DS.radius)
+
+            // 1b. Pause Protection toggle
+            HStack {
+                VStack(alignment: .leading, spacing: DS.spacingXS) {
+                    Text("Pause Protection")
+                        .font(.subheadline.bold())
+                    Text("Stops the cover from activating until resumed. Your screen stays visible while paused.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Toggle("Pause Protection", isOn: $manager.protectionPaused)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+            .padding(DS.cardPad)
+            .background(DS.cardBg)
             .cornerRadius(DS.radius)
 
             // 2. Monitored Device Info

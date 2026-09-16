@@ -104,6 +104,20 @@ class ProximityManager {
     var pendingManualUnlock: Bool = false
     var suppressionRemaining: TimeInterval? = nil
 
+    // MARK: - Manual Protection Pause (user toggle)
+    /// User-facing pause: while true the veil never activates and any active
+    /// veil is dismissed. Session-only (never persisted) so a relaunch always
+    /// resumes protection — a crash must never leave the screen uncovered.
+    var protectionPaused: Bool = false {
+        didSet {
+            awayDuration = 0
+            if protectionPaused {
+                isVeilActive = false
+                veilReason = nil
+            }
+        }
+    }
+
     // MARK: - Calibration Cooldown
     /// Veil activation is paused until this date after calibrating, giving the
     /// user time to walk back to the desk before cover/lock can trigger.
@@ -322,7 +336,16 @@ class ProximityManager {
             isStale = true
         }
 
-        // 4. Calibration cooldown: pause veil activation so the user can walk
+        // 4. Manual protection pause (user toggle): dominate everything —
+        // no veil, no grace accumulation, no state evaluation.
+        if protectionPaused {
+            awayDuration = 0
+            isVeilActive = false
+            veilReason = nil
+            return
+        }
+
+        // 5. Calibration cooldown: pause veil activation so the user can walk
         // back to the desk after capturing the away boundary.
         if let until = calibrationPauseUntil {
             let pauseLeft = until.timeIntervalSince(now)
@@ -338,7 +361,7 @@ class ProximityManager {
             }
         }
 
-        // 5. Developer pause (DEBUG cover button): keep veil down while it runs.
+        // 6. Developer pause (DEBUG cover button): keep veil down while it runs.
         if let until = developerPauseUntil {
             let pauseLeft = until.timeIntervalSince(now)
             if pauseLeft > 0 {
@@ -353,7 +376,7 @@ class ProximityManager {
             }
         }
 
-        // 6. Check suppression window countdown
+        // 7. Check suppression window countdown
         if let remaining = suppressionRemaining, remaining > 0 {
             let nextRemaining = max(0, remaining - 0.5)
             // If the bud returns mid-suppression, cancel suppression immediately and resume normal evaluation
@@ -373,7 +396,7 @@ class ProximityManager {
             }
         }
 
-        // 7. Presence state evaluation
+        // 8. Presence state evaluation
         evaluatePresenceState()
     }
 

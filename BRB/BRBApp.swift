@@ -49,6 +49,8 @@ struct BRBApp: App {
 
         Divider()
 
+        Toggle("Pause Protection", isOn: $manager.protectionPaused)
+
         Button("Lock Mac Now") {
             SessionLockManager.shared.lockScreen()
         }
@@ -66,6 +68,9 @@ struct BRBApp: App {
     }
 
     private var menuBarIcon: String {
+        if manager.protectionPaused {
+            return "pause.circle"
+        }
         guard manager.bluetoothGranted else {
             return "exclamationmark.shield"
         }
@@ -82,6 +87,9 @@ struct BRBApp: App {
     }
 
     private var menuBarStatusText: String {
+        if manager.protectionPaused {
+            return "BRB: Paused"
+        }
         switch manager.presenceState {
         case .near:
             return "BRB: Near (Active)"

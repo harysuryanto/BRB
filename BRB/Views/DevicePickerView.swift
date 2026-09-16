@@ -39,27 +39,135 @@ private func isStaleSample(_ sample: AdvertSample) -> Bool {
     Date().timeIntervalSince(sample.at) > 12.0
 }
 
+// MARK: - Device class (inferred from name — BLE carries no photos/class)
+
+private enum DeviceCategory {
+    case buds
+    case headphones
+    case phone
+    case computer
+    case tablet
+    case watch
+    case mouse
+    case keyboard
+    case speaker
+    case tag
+    case unknown
+
+    var symbol: String {
+        switch self {
+        case .buds: return "airpodspro"
+        case .headphones: return "headphones"
+        case .phone: return "iphone"
+        case .computer: return "macbook"
+        case .tablet: return "ipad"
+        case .watch: return "applewatch"
+        case .mouse: return "computermouse"
+        case .keyboard: return "keyboard"
+        case .speaker: return "hifispeaker"
+        case .tag: return "airtag"
+        case .unknown: return "antenna.radiowaves.left.and.right"
+        }
+    }
+
+    /// Dark-enough stops throughout: the 28pt glyph is white, so every
+    /// gradient must keep contrast (no yellows / light greys / cyans).
+    var gradient: (Color, Color) {
+        switch self {
+        case .buds: return (.purple, .blue)
+        case .headphones: return (.indigo, .teal)
+        case .phone: return (.green, .teal)
+        case .computer: return (Color(red: 0.32, green: 0.35, blue: 0.43), .black)
+        case .tablet: return (.blue, .indigo)
+        case .watch: return (.orange, .pink)
+        case .mouse: return (.orange, .brown)
+        case .keyboard: return (.purple, .pink)
+        case .speaker: return (.red, .orange)
+        case .tag: return (.teal, .blue)
+        case .unknown: return (Color(white: 0.35), .black)
+        }
+    }
+
+    /// Short spoken/written label for accessibility.
+    var label: String {
+        switch self {
+        case .buds: return "Earbuds"
+        case .headphones: return "Headphones"
+        case .phone: return "Phone"
+        case .computer: return "Computer"
+        case .tablet: return "Tablet"
+        case .watch: return "Watch"
+        case .mouse: return "Mouse"
+        case .keyboard: return "Keyboard"
+        case .speaker: return "Speaker"
+        case .tag: return "Tracker tag"
+        case .unknown: return "Bluetooth device"
+        }
+    }
+}
+
+private func isUnnamed(_ name: String) -> Bool {
+    let n = name.trimmingCharacters(in: .whitespaces)
+    return n.isEmpty || n.lowercased().contains("(unnamed)")
+}
+
+private func deviceCategory(for name: String) -> DeviceCategory {
+    let n = name.lowercased()
+    if isUnnamed(name) { return .unknown }
+    // Buds / headphones first (primary use case — check before generic "buds" traps).
+    if n.contains("airpods") { return .buds }
+    if n.contains("buds") || n.contains("freebuds") || n.contains("soundcore")
+        || n.contains("r60i") || n.contains("aero") || n.contains("life ")
+        || n.contains("pixel buds") || n.contains("echo buds") { return .buds }
+    if n.contains("headphone") || n.contains("headset")
+        || n.contains("sony") || n.contains("bose") || n.contains("beats")
+        || n.contains("jbl") || n.contains("sennheiser") || n.contains("shure")
+        || n.contains("audio-technica") || n.contains("arctis") || n.contains("hyperx") { return .headphones }
+    // Phones / computers / tablets.
+    if n.contains("iphone") || n.contains("pixel") || n.contains("galaxy s")
+        || n.contains("galaxy a") || n.contains("galaxy z") || n.contains("oneplus")
+        || n.contains("xiaomi") || n.contains("oppo") || n.contains("vivo")
+        || n.contains("honor") || n.contains("motorola") || n.contains("nothing phone") { return .phone }
+    if n.contains("macbook") || n.contains("thinkpad") || n.contains("surface")
+        || n.contains("laptop") || n.contains("desktop") || n.contains("imac")
+        || n.contains("mac mini") || n.contains("mac studio") || n.contains("dell")
+        || n.contains("hp ") || n.contains("lenovo") { return .computer }
+    if n.contains("ipad") || n.contains("tablet") || n.contains("tab s") { return .tablet }
+    // Wearables / tags.
+    if n.contains("watch") || n.contains("fitbit") || n.contains("garmin")
+        || n.contains("amazfit") || n.contains("versa") || n.contains("sense")
+        || n.contains("charge 5") || n.contains("band ") { return .watch }
+    if n.contains("airtag") || n.contains("tile") || n.contains("chipolo")
+        || n.contains("smarttag") { return .tag }
+    // Desk peripherals.
+    if n.contains("mouse") || n.contains("mx master") || n.contains("magic mouse")
+        || n.contains("m350") || n.contains("m650") || n.contains("g pro")
+        || n.contains("deathadder") || n.contains("trackpad") { return .mouse }
+    if n.contains("keyboard") || n.contains("mx keys") || n.contains("k380")
+        || n.contains("k780") || n.contains("magic keyboard") || n.contains("keychron") { return .keyboard }
+    // Speakers / displays.
+    if n.contains("speaker") || n.contains("homepod") || n.contains("echo")
+        || n.contains("nest") || n.contains("sonos") || n.contains("flip")
+        || n.contains("charge 4") || n.contains("charge 5") || n.contains("go 3")
+        || n.contains("soundbar") { return .speaker }
+    return .unknown
+}
+
 // MARK: - Art helpers (generated — BLE carries no photos)
 
 private func deviceSymbol(for name: String) -> String {
-    let n = name.lowercased()
-    if n.contains("(unnamed)") || n.isEmpty { return "bluetooth" }
-    if n.contains("airpods") { return n.contains("pro") ? "airpodspro" : "airpods" }
-    if n.contains("speaker") || n.contains("homepod") { return "hifispeaker" }
-    return "headphones"
+    deviceCategory(for: name).symbol
 }
 
-private let deviceGradients: [(Color, Color)] = [
-    (.blue, .purple),
-    (.pink, .orange),
-    (.green, .teal),
-    (.indigo, .cyan),
-    (.orange, .red),
-]
+/// Runtime guard: an invalid SF Symbol name renders as *nothing* (blank tile),
+/// so verify against AppKit and fall back to a known-good symbol.
+private func safeSymbol(_ name: String) -> String {
+    if NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil { return name }
+    return "antenna.radiowaves.left.and.right"
+}
 
-private func deviceGradient(for id: String) -> (Color, Color) {
-    let h = abs(id.hashValue)
-    return deviceGradients[h % deviceGradients.count]
+private func deviceGradient(for name: String) -> (Color, Color) {
+    deviceCategory(for: name).gradient
 }
 
 private func sortedDeviceIDs(_ manager: ProximityManager) -> [String] {
@@ -67,7 +175,18 @@ private func sortedDeviceIDs(_ manager: ProximityManager) -> [String] {
         let aPinned = (manager.pinnedLEID == a)
         let bPinned = (manager.pinnedLEID == b)
         if aPinned != bPinned { return aPinned }
-        return (manager.leAdverts[a]?.rssi ?? -100) > (manager.leAdverts[b]?.rssi ?? -100)
+        let aName = manager.leAdverts[a]?.name ?? ""
+        let bName = manager.leAdverts[b]?.name ?? ""
+        let aUnnamed = isUnnamed(aName)
+        let bUnnamed = isUnnamed(bName)
+        // All unnamed devices go after all named devices.
+        if aUnnamed != bUnnamed { return bUnnamed }
+        if aUnnamed {
+            // Within the unnamed group, strongest signal first so a moved
+            // bud can still be identified by watching dBm rise.
+            return (manager.leAdverts[a]?.rssi ?? -100) > (manager.leAdverts[b]?.rssi ?? -100)
+        }
+        return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
     }
 }
 
@@ -75,18 +194,19 @@ private func sortedDeviceIDs(_ manager: ProximityManager) -> [String] {
 
 struct DeviceArtView: View {
     var name: String
-    var id: String
 
     var body: some View {
-        let (c1, c2) = deviceGradient(for: id)
+        let (c1, c2) = deviceGradient(for: name)
         ZStack {
             RoundedRectangle(cornerRadius: DS.radius)
                 .fill(LinearGradient(colors: [c1, c2], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: DS.deviceArtSize, height: DS.deviceArtSize)
-            Image(systemName: deviceSymbol(for: name))
+            Image(systemName: safeSymbol(deviceSymbol(for: name)))
                 .font(.system(size: 28))
                 .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
         }
+        .accessibilityHidden(true)
     }
 }
 
@@ -119,7 +239,7 @@ struct DeviceCardView: View {
         Button(action: action) {
             VStack(spacing: DS.spacingSM) {
                 ZStack(alignment: .topTrailing) {
-                    DeviceArtView(name: sample.name, id: id)
+                    DeviceArtView(name: sample.name)
                     if isPinned {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 20))
@@ -167,8 +287,8 @@ struct DeviceCardView: View {
         .buttonStyle(.plain)
         .help(isPinned ? "Monitored — click again to unpin" : "Monitor this device")
         .accessibilityLabel(isPinned
-            ? "Monitored, \(sample.name), \(sample.rssi) dBm. Activate to unpin."
-            : "Monitor \(sample.name), \(sample.rssi) dBm.")
+            ? "Monitored, \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm. Activate to unpin."
+            : "Monitor \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm.")
         .contextMenu {
             Button("Copy device ID") {
                 NSPasteboard.general.clearContents()
@@ -199,7 +319,7 @@ struct DevicePickerView: View {
 
             if manager.leAdverts.isEmpty {
                 VStack(spacing: DS.spacingSM) {
-                    Image(systemName: "bluetooth")
+                    Image(systemName: "antenna.radiowaves.left.and.right")
                         .font(.system(size: 32))
                         .foregroundColor(.secondary)
                     Text("Nothing heard yet — move the bud or wait for a scan burst.")
@@ -226,7 +346,7 @@ struct DevicePickerView: View {
                         }
                     }
                 }
-                Text("Tap a card to monitor — move the bud and watch it rise to the top.")
+                Text("Tap a card to monitor — named A–Z, unnamed at the end.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

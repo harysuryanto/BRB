@@ -171,19 +171,15 @@ private func deviceGradient(for name: String) -> (Color, Color) {
 }
 
 private func sortedDeviceIDs(_ manager: ProximityManager) -> [String] {
+    // Pure name order — pin state never moves cards. Named A–Z first,
+    // all unnamed last (strongest first so a moved bud can be identified).
     manager.leAdverts.keys.sorted { a, b in
-        let aPinned = (manager.pinnedLEID == a)
-        let bPinned = (manager.pinnedLEID == b)
-        if aPinned != bPinned { return aPinned }
         let aName = manager.leAdverts[a]?.name ?? ""
         let bName = manager.leAdverts[b]?.name ?? ""
         let aUnnamed = isUnnamed(aName)
         let bUnnamed = isUnnamed(bName)
-        // All unnamed devices go after all named devices.
         if aUnnamed != bUnnamed { return bUnnamed }
         if aUnnamed {
-            // Within the unnamed group, strongest signal first so a moved
-            // bud can still be identified by watching dBm rise.
             return (manager.leAdverts[a]?.rssi ?? -100) > (manager.leAdverts[b]?.rssi ?? -100)
         }
         return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
@@ -267,21 +263,20 @@ struct DeviceCardView: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
 
-                if isPinned {
-                    DSPill(text: "Monitored", tint: .green)
-                    Text("Tap again to unpin")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                // Pinned affordance rows are always rendered (hidden when unpinned)
+                // so every card measures the same height and the grid stays uniform.
+                DSPill(text: "Monitored", tint: .green)
+                    .opacity(isPinned ? 1 : 0)
+                    .accessibilityHidden(!isPinned)
+                Text(isPinned ? "Tap again to unpin" : " ")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .accessibilityHidden(!isPinned)
             }
             .frame(maxWidth: .infinity)
             .padding(DS.cardPad)
             .background(isPinned ? Color.accentColor.opacity(0.08) : DS.cardBg)
             .cornerRadius(DS.radius)
-            .overlay(
-                RoundedRectangle(cornerRadius: DS.radius)
-                    .stroke(isPinned ? Color.accentColor : Color.clear, lineWidth: 2)
-            )
             .opacity(stale && !isPinned ? 0.6 : 1.0)
         }
         .buttonStyle(.plain)

@@ -252,7 +252,7 @@ class ProximityManager {
                     self.leAdverts.filter { pair in
                         let limit = (pair.key == self.pinnedLEID) ? 300.0 : 60.0
                         return now.timeIntervalSince(pair.value.at) < limit
-                    }.prefix(30).map { ($0.key, $0.value) })
+                    }.sorted { $0.value.at > $1.value.at }.prefix(30).map { ($0.key, $0.value) })
 
                 // A pinned advertisement feeds the live sample stream even without a held GATT link.
                 if key == self.pinnedLEID {

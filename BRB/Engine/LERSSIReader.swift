@@ -40,6 +40,11 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     private var lastRequest: Date = .distantPast
     private var seenCount: Int = 0
     private var lastHeartbeat: Date = .distantPast
+    /// Whether a duplicates-mode scan is currently running. The scan stays up
+    /// even while a monitor link is held — stopping it froze the nearby list
+    /// (no new devices, and pruning stalled because it only runs on advert
+    /// receipt). Scanning and a held GATT link coexist fine on CoreBluetooth.
+    private var isScanning = false
     /// Direct-reconnect budget for a dropped HELD link (no scan round-trip).
     /// Capped so a truly-gone bud falls back to scanning, not a hot loop.
     private var reconnectTries: Int = 0
@@ -60,13 +65,16 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         peripheral = nil
         reconnectTries = 0
         central?.stopScan()
+        isScanning = false
     }
 
     /// Hygiene restart: with duplicates-mode streaming there are no gaps to
-    /// close; restarts only reset counters.
+    /// close; restarts only reset counters. Never touches the held monitor
+    /// link — it only recycles the scan.
     func restartScan() {
-        guard central?.state == .poweredOn, peripheral == nil else { return }
+        guard central?.state == .poweredOn else { return }
         central?.stopScan()
+        isScanning = false
         startScan()
     }
 
@@ -79,31 +87,34 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     }
 
     private func startScan() {
-        guard peripheral == nil else { return }
         // Connected buds stop advertising to save power, so active
         // discovery alone never sees them. First ask the system for LE
         // peripherals it already holds (GAP 0x1800 is mandatory on every
         // GATT server, BAS/DIS cover most buds).
         tryAttached()
-        guard peripheral == nil else { return }
+        guard central?.state == .poweredOn, !isScanning else { return }
         seenCount = 0
         onStatus?("Scanning LE…")
         // Duplicates ON: every received packet reports fresh RSSI instead of
         // one sighting per scan session. Costs more radio/CPU — acceptable
         // for a plugged-in desk tool, and it closes the restart gaps.
+        // NOTE: the scan intentionally keeps running while a monitor link is
+        // held so the nearby-device list stays live.
         central?.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+        isScanning = true
     }
 
     /// Attach to a system-connected LE peripheral matching the picked bud.
+    /// Never stops the scan — the nearby list must keep updating.
     private func tryAttached() {
         guard let central else { return }
         let uuids = ["1800", "180F", "180A"].map { CBUUID(string: $0) }
         for p in central.retrieveConnectedPeripherals(withServices: uuids) {
+            if peripheral?.identifier == p.identifier { continue } // already held
             let name = p.name ?? ""
             if matches(id: p.identifier, name: name) {
                 peripheral = p
                 reconnectTries = 0
-                central.stopScan()
                 onStatus?("Attaching LE: \(name.isEmpty ? p.identifier.uuidString : name)")
                 central.connect(p, options: nil)
                 return
@@ -112,7 +123,10 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     }
 
     private func matches(id: UUID, name: String) -> Bool {
-        if let pinnedID, id == pinnedID { return true }
+        // Pin-by-identifier: once a device is pinned, only that identifier
+        // may claim the monitor link — otherwise a nearby TWS-looking
+        // stranger could steal the link and feed its RSSI into presence.
+        if pinnedID != nil { return id == pinnedID }
         return matches(name: name)
     }
 
@@ -133,7 +147,10 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         onState?(central.state)
         if central.state == .poweredOn { startScan() }
-        else { onStatus?("LE unavailable (\(central.state.rawValue))") }
+        else {
+            isScanning = false
+            onStatus?("LE unavailable (\(central.state.rawValue))")
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover p: CBPeripheral,
@@ -142,6 +159,8 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         seenCount += 1
         // Advertisement RSSI is free proximity data — report it before any
         // match/connect logic so even non-connectable beacons show up.
+        // This fires continuously (duplicates mode) so the nearby list,
+        // pruning, and ages stay live even while a monitor link is held.
         onAdvertisement?(p.identifier, name, RSSI.intValue)
         guard matches(id: p.identifier, name: name) else {
             // Time-throttled heartbeat (duplicates mode is chatty): proves
@@ -152,9 +171,10 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
             }
             return
         }
+        // A monitor link is already held — keep it, keep scanning for the list.
+        guard peripheral == nil else { return }
         peripheral = p
         reconnectTries = 0
-        central.stopScan()
         onStatus?("Connecting LE: \(name)")
         central.connect(p, options: nil)
     }

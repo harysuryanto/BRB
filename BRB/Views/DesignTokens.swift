@@ -49,6 +49,10 @@ enum DS {
     static let windowWidth: CGFloat = 640
     static let windowHeight: CGFloat = 520
 
+    // MARK: - Device cards (Nearby grid)
+    static let deviceArtSize: CGFloat = 64
+    static let deviceGridSpacing: CGFloat = 12
+
     // MARK: - Veil (fullscreen exception: dark aesthetic stays,
     // only internal button metrics are normalised)
     enum Veil {

@@ -9,6 +9,7 @@ import SwiftUI
 import AppKit
 
 struct CoverSettingsView: View {
+    @Bindable var manager: ProximityManager
     @State private var imageManager = VeilImageManager.shared
     @State private var isTestPreviewActive: Bool = false
     @State private var coverActiveHint: Bool = false
@@ -103,6 +104,29 @@ struct CoverSettingsView: View {
                     Text("Cover is already active — preview skipped to avoid tearing it down.")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+            }
+
+            Divider()
+
+            // Cover Lock Mode
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Cover Lock")
+                    .font(.subheadline.bold())
+                Picker("Cover Lock", selection: $manager.veilLockMode) {
+                    Text("Secure").tag(VeilLockMode.secure)
+                    Text("Casual").tag(VeilLockMode.casual)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                if manager.veilLockMode == .secure {
+                    Text("Secure: the cover lifts only when your earbuds return or via Mac login. Real protection.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Casual: adds a Hide button that lifts the cover with no login — aesthetic only, anyone nearby can click it.")
+                        .font(.caption)
+                        .foregroundColor(.orange)
                 }
             }
         }

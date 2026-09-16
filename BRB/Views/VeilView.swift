@@ -13,6 +13,8 @@ struct VeilView: View {
     var reason: String?
     var onUnlock: () -> Void
     var onDeveloperPause: (() -> Void)? = nil
+    var onCasualDismiss: (() -> Void)? = nil
+    var lockMode: VeilLockMode = .secure
 
     @State private var imageManager = VeilImageManager.shared
 
@@ -37,28 +39,55 @@ struct VeilView: View {
                     Spacer()
 
                     VStack(spacing: 8) {
-                        Button(action: onUnlock) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "lock.shield.fill")
-                                    .font(.system(size: 15, weight: .semibold))
-                                Text("Unlock with Mac Login")
-                                    .font(.system(size: 14, weight: .semibold))
+                        if lockMode == .secure {
+                            Button(action: onUnlock) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "lock.shield.fill")
+                                        .font(.system(size: 15, weight: .semibold))
+                                    Text("Unlock with Mac Login")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .padding(.horizontal, 22)
+                                .padding(.vertical, 10)
+                                .background(Color.white.opacity(0.18))
+                                .foregroundColor(.white)
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                                )
                             }
-                            .padding(.horizontal, 22)
-                            .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.18))
-                            .foregroundColor(.white)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
+                            .buttonStyle(.plain)
 
-                        Text("Locks this Mac — log back in to dismiss the cover for a while.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.7))
+                            Text("Locks this Mac — log back in to dismiss the cover for a while.")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+
+                        if lockMode == .casual, let onCasualDismiss {
+                            Button(action: onCasualDismiss) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "eye.slash.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("Hide Cover")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 7)
+                                .background(Color.white.opacity(0.12))
+                                .foregroundColor(.white)
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            Text("Lifts the cover without locking — it returns if you're still away.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.55))
+                        }
 
 #if DEBUG
                         if let onDeveloperPause {

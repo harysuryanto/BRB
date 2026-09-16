@@ -17,6 +17,15 @@ struct AdvertSample: Codable {
     var at: Date
 }
 
+/// How dismissible the veil cover is.
+/// - secure: lifts only on TWS return or macOS login (real protection).
+/// - casual: also offers a Hide button that lifts it once with no auth
+///   (aesthetic only — it returns after the grace delay if still away).
+enum VeilLockMode: String, CaseIterable {
+    case secure
+    case casual
+}
+
 @Observable
 class ProximityManager {
     static let shared = ProximityManager()
@@ -66,6 +75,9 @@ class ProximityManager {
     }
     var veilOnGoneEnabled: Bool {
         didSet { UserDefaults.standard.set(veilOnGoneEnabled, forKey: "BRB.veilOnGone") }
+    }
+    var veilLockMode: VeilLockMode {
+        didSet { UserDefaults.standard.set(veilLockMode.rawValue, forKey: "BRB.veilLockMode") }
     }
 
     // MARK: - Presence State Machine
@@ -132,6 +144,7 @@ class ProximityManager {
         self.suppressDuration = defaults.object(forKey: "BRB.suppressDuration") as? TimeInterval ?? 900.0 // 15 mins
         self.failSecureEnabled = defaults.object(forKey: "BRB.failSecureEnabled") as? Bool ?? true
         self.veilOnGoneEnabled = defaults.object(forKey: "BRB.veilOnGone") as? Bool ?? true
+        self.veilLockMode = VeilLockMode(rawValue: defaults.string(forKey: "BRB.veilLockMode") ?? "") ?? .secure
         self.pinnedLEID = defaults.string(forKey: "BRB.pinnedLEID")
 
         setupLockAndVeilCallbacks()
@@ -159,6 +172,13 @@ class ProximityManager {
         VeilWindowController.shared.onDeveloperPauseRequested = { [weak self] in
             DispatchQueue.main.async {
                 self?.pauseVeilForDeveloper()
+            }
+        }
+
+        // Wire veil casual button -> lift once with no auth (snoozes one grace period)
+        VeilWindowController.shared.onCasualDismissRequested = { [weak self] in
+            DispatchQueue.main.async {
+                self?.dismissVeilCasually()
             }
         }
 
@@ -509,6 +529,21 @@ class ProximityManager {
         awayDuration = 0
         isVeilActive = false
         veilReason = nil
+    }
+
+    // MARK: - Casual Dismiss (Casual lock mode)
+    /// Lifts the veil once with no auth. The grace timer restarts from zero,
+    /// so if you're still away the veil returns after `graceDelay` (snooze).
+    func dismissVeilCasually() {
+        guard !Self.isPreview else { return }
+        awayDuration = 0
+        veilReason = nil
+        if VeilWindowController.shared.isPreviewActive {
+            // Hiding a preview: dismiss windows directly (no real veil exists).
+            VeilWindowController.shared.dismissVeilInstant()
+        } else {
+            isVeilActive = false
+        }
     }
 
     // MARK: - Suppression Trigger (Used by Veil Unlock Flow)

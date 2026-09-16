@@ -89,7 +89,7 @@ struct ContentView: View {
                 case .device:
                     deviceTab
                 case .cover:
-                    CoverSettingsView()
+                    CoverSettingsView(manager: manager)
                 case .calibration:
                     CalibrationSettingsView(manager: manager)
                 case .security:

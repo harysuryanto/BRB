@@ -34,6 +34,7 @@ final class VeilWindowController: NSObject {
 
     var onUnlockRequested: (() -> Void)?
     var onDeveloperPauseRequested: (() -> Void)?
+    var onCasualDismissRequested: (() -> Void)?
 
     override init() {
         super.init()
@@ -270,11 +271,14 @@ final class VeilWindowController: NSObject {
         window.hidesOnDeactivate = false
         window.isReleasedWhenClosed = false
 
-        let rootView = VeilView(reason: currentReason) { [weak self] in
+        var rootView = VeilView(reason: currentReason) { [weak self] in
             self?.onUnlockRequested?()
         } onDeveloperPause: { [weak self] in
             self?.onDeveloperPauseRequested?()
+        } onCasualDismiss: { [weak self] in
+            self?.onCasualDismissRequested?()
         }
+        rootView.lockMode = ProximityManager.shared.veilLockMode
 
         let hostingController = NSHostingController(rootView: rootView)
         window.contentViewController = hostingController

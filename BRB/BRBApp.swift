@@ -71,13 +71,13 @@ struct BRBApp: App {
         }
         switch manager.presenceState {
         case .near:
-            return "lock.shield.fill"
+            return "person.badge.shield.checkmark.fill"
         case .far:
             return "figure.walk"
         case .gone:
-            return "shield.slash"
+            return "exclamationmark.shield.fill"
         case .idle:
-            return "lock.shield"
+            return "shield.slash"
         }
     }
 

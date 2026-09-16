@@ -15,7 +15,7 @@ struct CoverSettingsView: View {
     @State private var coverActiveHint: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: DS.spacingXL) {
             Text("Screen Cover Image")
                 .font(.headline)
 
@@ -25,7 +25,7 @@ struct CoverSettingsView: View {
 
             // Image Preview Thumbnail
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DS.radius)
                     .fill(Color.black)
 
                 Image(nsImage: imageManager.effectiveImage(for: CGSize(width: 480, height: 270)))
@@ -33,7 +33,7 @@ struct CoverSettingsView: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(maxWidth: .infinity, maxHeight: 220)
                     .clipped()
-                    .cornerRadius(12)
+                    .cornerRadius(DS.radius)
 
                 VStack {
                     Spacer()
@@ -44,38 +44,32 @@ struct CoverSettingsView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(.ultraThinMaterial)
-                                .cornerRadius(6)
+                                .cornerRadius(DS.radius)
                         } else {
                             Label("Default Wordmark", systemImage: "sparkles")
                                 .font(.caption.bold())
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(.ultraThinMaterial)
-                                .cornerRadius(6)
+                                .cornerRadius(DS.radius)
                         }
                         Spacer()
                     }
-                    .padding(10)
+                    .padding(DS.compactPad)
                 }
             }
             .frame(height: 220)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DS.radius)
                     .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
             )
 
             if let error = imageManager.bookmarkError {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                DSBanner(icon: "exclamationmark.triangle.fill", text: error, tint: .orange)
             }
 
             // Action Buttons
-            HStack(spacing: 12) {
+            HStack(spacing: DS.spacingMD) {
                 Button("Choose Image…") {
                     imageManager.pickImage()
                 }
@@ -98,19 +92,17 @@ struct CoverSettingsView: View {
             }
 
             if coverActiveHint {
-                HStack {
-                    Image(systemName: "info.circle.fill")
-                        .foregroundColor(.blue)
-                    Text("Cover is already active — preview skipped to avoid tearing it down.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                DSBanner(
+                    icon: "info.circle.fill",
+                    text: "Cover is already active — preview skipped to avoid tearing it down.",
+                    tint: .blue
+                )
             }
 
             Divider()
 
             // Cover Lock Mode
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.spacingSM) {
                 Text("Cover Lock")
                     .font(.subheadline.bold())
                 Picker("Cover Lock", selection: $manager.veilLockMode) {
@@ -129,8 +121,11 @@ struct CoverSettingsView: View {
                         .foregroundColor(.orange)
                 }
             }
+            .padding(DS.cardPad)
+            .background(DS.cardBg)
+            .cornerRadius(DS.radius)
         }
-        .padding(20)
+        .padding(DS.outerPad)
     }
 
     private func triggerTestPreview() {

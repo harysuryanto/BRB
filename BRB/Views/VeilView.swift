@@ -38,17 +38,17 @@ struct VeilView: View {
                 VStack {
                     Spacer()
 
-                    VStack(spacing: 8) {
+                    VStack(spacing: DS.spacingSM) {
                         if lockMode == .secure {
                             Button(action: onUnlock) {
-                                HStack(spacing: 8) {
+                                HStack(spacing: DS.spacingSM) {
                                     Image(systemName: "lock.shield.fill")
                                         .font(.system(size: 15, weight: .semibold))
                                     Text("Unlock with Mac Login")
                                         .font(.system(size: 14, weight: .semibold))
                                 }
-                                .padding(.horizontal, 22)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, DS.Veil.btnHPad)
+                                .padding(.vertical, DS.Veil.btnVPad)
                                 .background(Color.white.opacity(0.18))
                                 .foregroundColor(.white)
                                 .clipShape(Capsule())
@@ -60,20 +60,20 @@ struct VeilView: View {
                             .buttonStyle(.plain)
 
                             Text("Locks this Mac — log back in to dismiss the cover for a while.")
-                                .font(.system(size: 12))
+                                .font(.system(size: DS.Veil.helpSize))
                                 .foregroundColor(.white.opacity(0.7))
                         }
 
                         if lockMode == .casual, let onCasualDismiss {
                             Button(action: onCasualDismiss) {
-                                HStack(spacing: 6) {
+                                HStack(spacing: DS.spacingSM) {
                                     Image(systemName: "eye.slash.fill")
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.system(size: 15, weight: .semibold))
                                     Text("Hide Cover")
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.system(size: 14, weight: .semibold))
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 7)
+                                .padding(.horizontal, DS.Veil.btnHPad)
+                                .padding(.vertical, DS.Veil.btnVPad)
                                 .background(Color.white.opacity(0.12))
                                 .foregroundColor(.white)
                                 .clipShape(Capsule())
@@ -85,21 +85,21 @@ struct VeilView: View {
                             .buttonStyle(.plain)
 
                             Text("Lifts the cover without locking — it returns if you're still away.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.55))
+                                .font(.system(size: DS.Veil.helpSize))
+                                .foregroundColor(.white.opacity(0.7))
                         }
 
 #if DEBUG
                         if let onDeveloperPause {
                             Button(action: onDeveloperPause) {
-                                HStack(spacing: 6) {
+                                HStack(spacing: DS.spacingSM) {
                                     Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.system(size: 15, weight: .semibold))
                                     Text("Close & Pause 15s (Debug)")
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.system(size: 14, weight: .semibold))
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 7)
+                                .padding(.horizontal, DS.Veil.btnHPad)
+                                .padding(.vertical, DS.Veil.btnVPad)
                                 .background(Color.orange.opacity(0.25))
                                 .foregroundColor(.white)
                                 .clipShape(Capsule())

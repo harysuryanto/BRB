@@ -11,7 +11,7 @@ struct CalibrationSettingsView: View {
     @Bindable var manager: ProximityManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: DS.spacingXL) {
             Text("Proximity Thresholds & Hysteresis")
                 .font(.headline)
 
@@ -19,9 +19,9 @@ struct CalibrationSettingsView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
-            VStack(spacing: 16) {
+            VStack(spacing: DS.spacingLG) {
                 // Veil-On Threshold (Away)
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DS.spacingSM) {
                     HStack {
                         Text("Veil-On Threshold (Stepped Away):")
                             .font(.subheadline.bold())
@@ -38,7 +38,7 @@ struct CalibrationSettingsView: View {
                 Divider()
 
                 // Veil-Off Threshold (Return)
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DS.spacingSM) {
                     HStack {
                         Text("Veil-Off Threshold (Returned):")
                             .font(.subheadline.bold())
@@ -52,29 +52,24 @@ struct CalibrationSettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(14)
-            .background(Color.secondary.opacity(0.06))
-            .cornerRadius(10)
+            .padding(DS.cardPad)
+            .background(DS.cardBg)
+            .cornerRadius(DS.radius)
 
             // Calibration actions
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DS.spacingSM) {
                 Text("Calibration Actions")
                     .font(.subheadline.bold())
 
                 if let pauseLeft = manager.calibrationPauseRemaining {
-                    HStack {
-                        Image(systemName: "pause.circle.fill")
-                            .foregroundColor(.blue)
-                        Text("Veil paused (\(Int(ceil(pauseLeft)))s) — walk back to your desk.")
-                            .font(.caption.bold())
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(8)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(8)
+                    DSBanner(
+                        icon: "pause.circle.fill",
+                        text: "Veil paused (\(Int(ceil(pauseLeft)))s) — walk back to your desk.",
+                        tint: .blue
+                    )
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: DS.spacingMD) {
                     Button("Calibrate Away Boundary (~2m)") {
                         manager.calibrateAwayBoundary()
                     }
@@ -91,6 +86,6 @@ struct CalibrationSettingsView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .padding(20)
+        .padding(DS.outerPad)
     }
 }

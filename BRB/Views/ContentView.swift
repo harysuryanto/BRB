@@ -21,6 +21,16 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Short label for the TabView bar so all four tabs fit without collapsing.
+    var title: String {
+        switch self {
+        case .device: return "Device"
+        case .cover: return "Cover"
+        case .calibration: return "Calibration"
+        case .security: return "Security"
+        }
+    }
+
     var icon: String {
         switch self {
         case .device: return "antenna.radiowaves.left.and.right"
@@ -55,58 +65,41 @@ struct ContentView: View {
     }
 
     private var mainSettingsView: some View {
-        VStack(spacing: 0) {
-            // Tab Picker Bar
-            HStack(spacing: 4) {
-                ForEach(SettingsTab.allCases) { tab in
-                    Button {
-                        selectedTab = tab
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: tab.icon)
-                            Text(tab.rawValue)
-                        }
-                        .font(.system(size: 12, weight: selectedTab == tab ? .semibold : .regular))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(selectedTab == tab ? Color.accentColor.opacity(0.15) : Color.clear)
-                        .foregroundColor(selectedTab == tab ? .accentColor : .primary)
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            // Active Tab Content
+        TabView(selection: $selectedTab) {
             ScrollView {
-                switch selectedTab {
-                case .device:
-                    deviceTab
-                case .cover:
-                    CoverSettingsView(manager: manager)
-                case .calibration:
-                    CalibrationSettingsView(manager: manager)
-                case .security:
-                    TimersSecuritySettingsView(manager: manager) {
-                        hasCompletedOnboarding = false
-                    }
+                deviceTab
+            }
+            .tabItem { Label(SettingsTab.device.title, systemImage: SettingsTab.device.icon) }
+            .tag(SettingsTab.device)
+
+            ScrollView {
+                CoverSettingsView(manager: manager)
+            }
+            .tabItem { Label(SettingsTab.cover.title, systemImage: SettingsTab.cover.icon) }
+            .tag(SettingsTab.cover)
+
+            ScrollView {
+                CalibrationSettingsView(manager: manager)
+            }
+            .tabItem { Label(SettingsTab.calibration.title, systemImage: SettingsTab.calibration.icon) }
+            .tag(SettingsTab.calibration)
+
+            ScrollView {
+                TimersSecuritySettingsView(manager: manager) {
+                    hasCompletedOnboarding = false
                 }
             }
+            .tabItem { Label(SettingsTab.security.title, systemImage: SettingsTab.security.icon) }
+            .tag(SettingsTab.security)
         }
-        .frame(width: 540, height: 500)
+        .frame(minWidth: DS.windowWidth, minHeight: DS.windowHeight)
     }
 
     // MARK: - Device Tab
     private var deviceTab: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.spacingLG) {
             // 1. Live Presence Status Card
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: DS.spacingLG) {
                 ZStack {
                     Circle()
                         .fill(presenceColor.opacity(0.2))
@@ -116,46 +109,34 @@ struct ContentView: View {
                         .foregroundColor(presenceColor)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.spacingXS) {
+                    HStack(spacing: DS.spacingSM) {
                         Text(presenceLabel)
-                            .font(.title3.bold())
+                            .font(.headline)
                         if let remaining = manager.suppressionRemaining {
-                            Text("Suppression Active (\(Int(remaining))s)")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.purple.opacity(0.2))
-                                .foregroundColor(.purple)
-                                .clipShape(Capsule())
+                            DSPill(text: "Suppression Active (\(Int(remaining))s)", tint: .purple)
                         }
 #if DEBUG
                         if let devPause = manager.developerPauseRemaining {
-                            Text("Dev Pause (\(Int(ceil(devPause)))s)")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.orange.opacity(0.2))
-                                .foregroundColor(.orange)
-                                .clipShape(Capsule())
+                            DSPill(text: "Dev Pause (\(Int(ceil(devPause)))s)", tint: .orange)
                         }
 #endif
                     }
 
                     if let rssi = manager.liveRSSI {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DS.spacingSM) {
                             Text("Live:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Text("\(rssi) dBm (\(manager.liveKind))")
-                                .font(.system(.caption, design: .monospaced).bold())
+                                .font(.system(.subheadline, design: .monospaced).bold())
 
                             if let smoothed = manager.smoothedRSSI {
                                 Text("• Smoothed:")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Text(String(format: "%.1f dBm", smoothed))
-                                    .font(.system(.caption, design: .monospaced).bold())
+                                    .font(.system(.subheadline, design: .monospaced).bold())
                             }
                         }
                     } else {
@@ -166,7 +147,7 @@ struct ContentView: View {
 
                     if let age = manager.sampleAge {
                         Text("Sample age: \(String(format: "%.1f", age))s \(manager.isStale ? "(stale)" : "")")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundColor(manager.isStale ? .orange : .secondary)
                     }
                 }
@@ -181,12 +162,12 @@ struct ContentView: View {
                     .buttonStyle(.bordered)
                 }
             }
-            .padding(14)
-            .background(Color.secondary.opacity(0.08))
-            .cornerRadius(12)
+            .padding(DS.cardPad)
+            .background(DS.emphasisBg())
+            .cornerRadius(DS.radius)
 
             // 2. Monitored Device Info
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.spacingSM) {
                 HStack {
                     Text("Monitored Earbuds")
                         .font(.headline)
@@ -208,17 +189,11 @@ struct ContentView: View {
                         Text(pinned)
                             .font(.subheadline.bold())
                         Spacer()
-                        Text("Pinned")
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.green.opacity(0.15))
-                            .foregroundColor(.green)
-                            .clipShape(Capsule())
+                        DSPill(text: "Pinned", tint: .green)
                     }
-                    .padding(10)
-                    .background(Color.secondary.opacity(0.06))
-                    .cornerRadius(8)
+                    .padding(DS.compactPad)
+                    .background(DS.cardBg)
+                    .cornerRadius(DS.radius)
                 } else {
                     Text("No device pinned. Select your earbuds from the scanner below to start monitoring.")
                         .font(.subheadline)
@@ -229,13 +204,13 @@ struct ContentView: View {
             Divider()
 
             // 3. Nearby Device Scanner
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.spacingSM) {
                 Text("Nearby Bluetooth LE Devices")
                     .font(.headline)
                 DevicePickerView(manager: manager)
             }
         }
-        .padding(20)
+        .padding(DS.outerPad)
     }
 
     private var presenceColor: Color {

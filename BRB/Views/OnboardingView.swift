@@ -19,7 +19,7 @@ struct OnboardingView: View {
     @State private var calibrationCaptured: Double? = nil
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.wizardSpacing) {
             // Header
             HStack(spacing: 12) {
                 Image(systemName: "shield.checkered")
@@ -33,12 +33,7 @@ struct OnboardingView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text("Step \(currentStep) of 3")
-                    .font(.caption.bold())
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.15))
-                    .clipShape(Capsule())
+                DSPill(text: "Step \(currentStep) of 3", tint: .secondary)
             }
 
             Divider()
@@ -90,13 +85,13 @@ struct OnboardingView: View {
                 }
             }
         }
-        .padding(24)
-        .frame(width: 520, height: 460)
+        .padding(DS.wizardOuterPad)
+        .frame(width: DS.windowWidth, height: DS.windowHeight)
     }
 
     // MARK: - Step 1: Bluetooth Permission
     private var permissionStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.spacingLG) {
             Text("Step 1: Bluetooth Access")
                 .font(.headline)
 
@@ -104,20 +99,20 @@ struct OnboardingView: View {
                 .font(.body)
                 .foregroundColor(.secondary)
 
-            HStack(spacing: 12) {
+            HStack(spacing: DS.spacingMD) {
                 Circle()
                     .fill(manager.bluetoothGranted ? Color.green : Color.orange)
                     .frame(width: 12, height: 12)
                 Text(manager.bluetoothGranted ? "Bluetooth permission granted" : manager.bluetoothPermission)
                     .font(.subheadline.bold())
             }
-            .padding(12)
+            .padding(DS.cardPad)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.secondary.opacity(0.08))
-            .cornerRadius(8)
+            .background(DS.emphasisBg())
+            .cornerRadius(DS.radius)
 
             if !manager.bluetoothGranted {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DS.spacingSM) {
                     Text("If macOS prompted you, please click **Allow**.")
                         .font(.caption)
                     Text("If denied, open System Settings → Privacy & Security → Bluetooth to enable it.")
@@ -138,7 +133,7 @@ struct OnboardingView: View {
 
     // MARK: - Step 2: Device Selection
     private var deviceStep: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DS.spacingLG) {
             Text("Step 2: Choose your Earbuds")
                 .font(.headline)
 
@@ -156,9 +151,9 @@ struct OnboardingView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                 }
-                .padding(10)
-                .background(Color.green.opacity(0.12))
-                .cornerRadius(8)
+                .padding(DS.compactPad)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(DS.radius)
             }
 
             DevicePickerView(manager: manager)
@@ -167,7 +162,7 @@ struct OnboardingView: View {
 
     // MARK: - Step 3: Away Boundary Calibration
     private var calibrationStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.spacingLG) {
             Text("Step 3: Away Boundary Calibration")
                 .font(.headline)
 
@@ -175,7 +170,7 @@ struct OnboardingView: View {
                 .font(.body)
                 .foregroundColor(.secondary)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DS.spacingSM) {
                 HStack {
                     Text("Live Earbud Signal:")
                         .font(.subheadline)
@@ -200,11 +195,11 @@ struct OnboardingView: View {
                         .font(.system(.subheadline, design: .monospaced).bold())
                 }
             }
-            .padding(12)
-            .background(Color.secondary.opacity(0.08))
-            .cornerRadius(8)
+            .padding(DS.cardPad)
+            .background(DS.emphasisBg())
+            .cornerRadius(DS.radius)
 
-            HStack(spacing: 12) {
+            HStack(spacing: DS.spacingMD) {
                 Button("Capture Away Boundary (~2m)") {
                     manager.calibrateAwayBoundary()
                     calibrationCaptured = manager.veilOnThreshold
@@ -219,15 +214,19 @@ struct OnboardingView: View {
             }
 
             if let captured = calibrationCaptured {
-                Text("Boundary set to \(Int(captured)) dBm (Veil activates below this).")
-                    .font(.caption)
-                    .foregroundColor(.green)
+                DSBanner(
+                    icon: "checkmark.circle.fill",
+                    text: "Boundary set to \(Int(captured)) dBm (Veil activates below this).",
+                    tint: .green
+                )
             }
 
             if let pauseLeft = manager.calibrationPauseRemaining {
-                Text("Veil paused (\(Int(ceil(pauseLeft)))s) — walk back to your desk, then finish setup.")
-                    .font(.caption)
-                    .foregroundColor(.blue)
+                DSBanner(
+                    icon: "pause.circle.fill",
+                    text: "Veil paused (\(Int(ceil(pauseLeft)))s) — walk back to your desk, then finish setup.",
+                    tint: .blue
+                )
             }
         }
     }

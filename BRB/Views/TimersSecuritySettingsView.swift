@@ -17,14 +17,14 @@ struct TimersSecuritySettingsView: View {
     private let suppressMinuteOptions: [Int] = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: DS.spacingXL) {
             Text("Timers & Security Policies")
                 .font(.headline)
 
-            VStack(spacing: 16) {
+            VStack(spacing: DS.spacingLG) {
                 // Grace Delay Dropdown
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DS.spacingXS) {
                         Text("Grace Delay")
                             .font(.subheadline.bold())
                         Text("Wait time before covering screen once signal drops below threshold.")
@@ -49,7 +49,7 @@ struct TimersSecuritySettingsView: View {
 
                 // Suppression Window Dropdown
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DS.spacingXS) {
                         Text("Post-Unlock Suppression")
                             .font(.subheadline.bold())
                         Text("Keeps the cover down after authenticating at loginwindow without your earbuds.")
@@ -74,7 +74,7 @@ struct TimersSecuritySettingsView: View {
 
                 // Cover on Signal Lost (Gone)
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DS.spacingXS) {
                         Text("Cover When Signal Is Lost")
                             .font(.subheadline.bold())
                         Text("Also cover the screen when earbuds vanish (cased, dead, Bluetooth off). When off, the status still shows Gone but no new cover appears.")
@@ -91,7 +91,7 @@ struct TimersSecuritySettingsView: View {
 
                 // Fail-Secure Policy
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DS.spacingXS) {
                         Text("Fail-Secure (Lock Mac on App Quit)")
                             .font(.subheadline.bold())
                         Text("Locks your Mac session if BRB is terminated gracefully, preventing bypass.")
@@ -104,9 +104,9 @@ struct TimersSecuritySettingsView: View {
                         .toggleStyle(.switch)
                 }
             }
-            .padding(14)
-            .background(Color.secondary.opacity(0.06))
-            .cornerRadius(10)
+            .padding(DS.cardPad)
+            .background(DS.cardBg)
+            .cornerRadius(DS.radius)
 
             Spacer(minLength: 0)
 
@@ -122,7 +122,7 @@ struct TimersSecuritySettingsView: View {
                 Spacer()
             }
         }
-        .padding(20)
+        .padding(DS.outerPad)
     }
 
     private func graceLabel(_ seconds: Int) -> String {

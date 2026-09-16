@@ -23,52 +23,54 @@ struct DevicePickerView: View {
         DisclosureGroup("Nearby devices (\(manager.leAdverts.count))") {
             if manager.leAdverts.isEmpty {
                 Text("Nothing heard yet — move the bud or wait for a scan burst.")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                VStack(spacing: 4) {
+                VStack(spacing: DS.spacingSM) {
                     ForEach(manager.leAdverts.keys.sorted(by: {
                         (manager.leAdverts[$0]?.name ?? "") < (manager.leAdverts[$1]?.name ?? "")
                     }), id: \.self) { id in
                         if let s = manager.leAdverts[id] {
-                            HStack(spacing: 6) {
-                                Button(manager.pinnedLEID == id ? "●" : "○") {
-                                    if manager.pinnedLEID == id { manager.unpinLEDevice() }
-                                    else { manager.pinLEDevice(id: id) }
-                                }
-                                .font(.caption)
-                                .buttonStyle(.plain)
-                                .help(manager.pinnedLEID == id
-                                      ? "Unpin: stop monitoring this device"
-                                      : "Pin: monitor this device")
-                                VStack(alignment: .leading, spacing: 0) {
-                                    Text(s.name)
-                                        .font(.system(.caption2, design: .monospaced))
-                                        .lineLimit(1)
-                                    Text(String(id.prefix(8)))
-                                        .font(.system(.caption2, design: .monospaced))
+                            VStack(spacing: 0) {
+                                HStack(spacing: DS.spacingSM) {
+                                    Button(manager.pinnedLEID == id ? "●" : "○") {
+                                        if manager.pinnedLEID == id { manager.unpinLEDevice() }
+                                        else { manager.pinLEDevice(id: id) }
+                                    }
+                                    .font(.body)
+                                    .buttonStyle(.plain)
+                                    .help(manager.pinnedLEID == id
+                                          ? "Unpin: stop monitoring this device"
+                                          : "Pin: monitor this device")
+                                    VStack(alignment: .leading, spacing: DS.spacingXS) {
+                                        Text(s.name)
+                                            .font(.system(.caption, design: .monospaced))
+                                            .lineLimit(1)
+                                        Text(String(id.prefix(8)))
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Text("\(s.rssi) dBm")
+                                        .font(.system(.caption, design: .monospaced).bold())
+                                    Text(ageString(since: s.at))
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
-                                Spacer()
-                                Text("\(s.rssi) dBm")
-                                    .font(.system(.caption2, design: .monospaced).bold())
-                                Text(ageString(since: s.at))
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+                                .textSelection(.enabled)
+                                Divider()
                             }
-                            .textSelection(.enabled)
-                            Divider().opacity(0.4)
                         }
                     }
                     Text("Tap ○ to monitor an entry — move the bud and watch dBm to identify it.")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
         }
         .font(.caption)
-        .padding(10)
-        .background(Color.gray.opacity(0.12))
-        .cornerRadius(6)
+        .padding(DS.compactPad)
+        .background(DS.cardBg)
+        .cornerRadius(DS.radius)
     }
 }

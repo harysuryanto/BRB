@@ -1,0 +1,83 @@
+# BRB — Step away. Your screen covers itself.
+
+BRB is a macOS presence-privacy app for wireless-earbud wearers. While you sit at your Mac, nothing happens. When you walk away (your buds leave radio range — e.g. getting water), BRB covers **all displays** with a fullscreen image (the *veil*) so passersby see nothing sensitive. Walk back and it lifts on its own — no clicks. A single **Unlock with Mac Login** button on the veil locks the Mac for real when you want authentication on return.
+
+Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water run doesn't nuke your session.
+
+## Requirements
+
+- Real Mac with Bluetooth (no simulator — CoreBluetooth needs hardware)
+- Xcode 17+, Swift 5, macOS 26 SDK (target: macOS 26.5+, `com.harysuryanto.brb`)
+- Unsandboxed Developer-ID-style build (sandbox blocks session lock + Bluetooth); first launch **Allow** when macOS asks for Bluetooth
+
+## Quick start
+
+```bash
+git clone git@github.com:harysuryanto/BRB.git
+cd BRB
+open BRB.xcodeproj   # ⌘R to build & run
+```
+
+Or headless:
+
+```bash
+xcodebuild -project BRB.xcodeproj -scheme BRB -configuration Debug -destination 'platform=macOS' build
+```
+
+First launch walks through 3 onboarding steps (draft until you hit Finish — quitting early changes nothing):
+
+1. **Bluetooth access** — creating the scanner *is* the system prompt; allow it.
+2. **Pick your earbuds** — tap a card in the Nearby grid (selection only stages; monitoring starts on Finish).
+3. **Away boundary** — stand ~2 m out, capture the dBm (or take the −80 dBm default), and watch the live signal gauge flip the preview between Cover Off / Cover On. No fullscreen happens during setup, ever.
+
+## Using it
+
+- **Menu bar**: status (`Near` / `Away` / `Gone` / `Idle` / `Paused`), monitored device, Pause Protection toggle, Settings, Quit.
+- **Settings tabs**:
+  - *Device* — live presence, monitored bud, Pause Protection, nearby scanner grid.
+  - *Cover* — custom veil image (picker/preview/reset) + Secure/Casual lock mode.
+  - *Calibration* — Veil-On/Veil-Off threshold sliders + away-boundary capture.
+  - *Timers & Security* — grace delay, post-unlock suppression, cover-on-signal-lost, fail-secure (lock on quit).
+- **Veil**: one button, **Unlock with Mac Login** → system lock → authenticate at loginwindow → cover stays down for the suppression window.
+
+### Defaults
+
+| Setting | Default |
+|---|---|
+| Veil-On / Veil-Off thresholds | −80 / −74 dBm (6 dBm hysteresis band) |
+| Grace delay | 10 s |
+| Post-unlock suppression | 15 min |
+| Fail-secure (lock on quit) | On |
+| Pause Protection | Off, session-only (relaunch always resumes protection) |
+
+## How it works
+
+0.5 s tick → LE sample (held-link GATT ~1 Hz, else advertisements) → EMA smoothing (α = 0.8) → hysteresis bands → grace timer → veil on/off. Freshness gates (GATT < 3 s, adv < 12 s); stale data freezes and is marked, never extrapolated. Devices are pinned by peripheral identifier, never by name. Classic Bluetooth RSSI is best-effort only (unreliable on Apple Silicon).
+
+## Project layout
+
+```
+BRB/
+  BRBApp.swift            Menu bar + main window
+  ProximityManager.swift  Engine coordinator (tick, state machine, veil, lock)
+  Engine/                 LERSSIReader, SignalProcessor, PresenceState,
+                          VeilWindowController, VeilImageManager, SessionLockManager
+  Views/                  ContentView (TabView), OnboardingView, DevicePickerView,
+                          Cover/Calibration/Timers settings, VeilView, DesignTokens
+Tests/EngineValidationTests.swift   Standalone @main acceptance suite
+PRD.md                    Full product requirements
+TODO.md                   Build roadmap / status
+```
+
+## Tests
+
+Standalone suite (EMA, presence transitions, hysteresis, grace, gone, suppression, default veil image) — all 7 currently green:
+
+```bash
+swiftc -o /tmp/brb-tests Tests/EngineValidationTests.swift BRB/Engine/SignalProcessor.swift BRB/Engine/PresenceState.swift BRB/Engine/VeilImageManager.swift -framework AppKit && /tmp/brb-tests
+```
+
+## Docs
+
+- [`PRD.md`](PRD.md) — requirements, architecture, acceptance protocol (note: some sections predate the dropdown timers + instant-preview onboarding — code wins on conflicts).
+- [`TODO.md`](TODO.md) — implementation roadmap and status.

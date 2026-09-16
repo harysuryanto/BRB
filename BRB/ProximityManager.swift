@@ -149,7 +149,9 @@ class ProximityManager {
     private var timer: Timer?
     private var ticks: Int = 0
     private var monitoringStartedAt: Date = Date()
-    private let signalProcessor = SignalProcessor(alpha: 0.2)
+    // α=0.8: light touch (history weight 0.2, a quarter of the old 0.8) —
+    // tracks fast, leans on the hysteresis band + grace timer for stability.
+    private let signalProcessor = SignalProcessor(alpha: 0.8)
 
     private static var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -435,9 +437,7 @@ class ProximityManager {
         liveRSSI = rssi
         liveRSSIAt = now
         liveKind = kind
-        // TEMPORARY: EMA bypassed for testing — smoothed tracks raw directly.
-        // To restore: replace next line with signalProcessor.process(rawRSSI: rssi).
-        smoothedRSSI = Double(rssi)
+        smoothedRSSI = signalProcessor.process(rawRSSI: rssi)
     }
 
     private func evaluatePresenceState() {

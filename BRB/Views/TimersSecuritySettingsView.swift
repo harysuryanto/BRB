@@ -73,7 +73,7 @@ struct TimersSecuritySettingsView: View {
                 Divider()
 
                 // Cover on Signal Lost (Gone)
-                Toggle(isOn: $manager.veilOnGoneEnabled) {
+                HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Cover When Signal Is Lost")
                             .font(.subheadline.bold())
@@ -81,13 +81,16 @@ struct TimersSecuritySettingsView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    Spacer()
+                    Toggle("Cover When Signal Is Lost", isOn: $manager.veilOnGoneEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
                 }
-                .toggleStyle(.switch)
 
                 Divider()
 
                 // Fail-Secure Policy
-                Toggle(isOn: $manager.failSecureEnabled) {
+                HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Fail-Secure (Lock Mac on App Quit)")
                             .font(.subheadline.bold())
@@ -95,8 +98,11 @@ struct TimersSecuritySettingsView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    Spacer()
+                    Toggle("Fail-Secure (Lock Mac on App Quit)", isOn: $manager.failSecureEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
                 }
-                .toggleStyle(.switch)
             }
             .padding(14)
             .background(Color.secondary.opacity(0.06))

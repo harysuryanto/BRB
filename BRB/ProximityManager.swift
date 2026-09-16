@@ -64,6 +64,9 @@ class ProximityManager {
     var failSecureEnabled: Bool {
         didSet { UserDefaults.standard.set(failSecureEnabled, forKey: "BRB.failSecureEnabled") }
     }
+    var veilOnGoneEnabled: Bool {
+        didSet { UserDefaults.standard.set(veilOnGoneEnabled, forKey: "BRB.veilOnGone") }
+    }
 
     // MARK: - Presence State Machine
     var presenceState: PresenceState = .idle
@@ -128,6 +131,7 @@ class ProximityManager {
         self.graceDelay = defaults.object(forKey: "BRB.graceDelay") as? TimeInterval ?? 10.0
         self.suppressDuration = defaults.object(forKey: "BRB.suppressDuration") as? TimeInterval ?? 900.0 // 15 mins
         self.failSecureEnabled = defaults.object(forKey: "BRB.failSecureEnabled") as? Bool ?? true
+        self.veilOnGoneEnabled = defaults.object(forKey: "BRB.veilOnGone") as? Bool ?? true
         self.pinnedLEID = defaults.string(forKey: "BRB.pinnedLEID")
 
         setupLockAndVeilCallbacks()
@@ -395,6 +399,9 @@ class ProximityManager {
         let goneThreshold = max(2.0 * graceDelay, 2.0)
         if effectiveAge >= goneThreshold {
             presenceState = .gone
+            // Latch: when covering on Gone is disabled, leave any existing
+            // veil state untouched (a Far-established veil stays up).
+            guard veilOnGoneEnabled else { return }
             isVeilActive = true
             veilReason = "Device gone (no signal detected for \(Int(effectiveAge))s)"
             return

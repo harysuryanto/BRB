@@ -72,6 +72,20 @@ struct TimersSecuritySettingsView: View {
 
                 Divider()
 
+                // Cover on Signal Lost (Gone)
+                Toggle(isOn: $manager.veilOnGoneEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cover When Signal Is Lost")
+                            .font(.subheadline.bold())
+                        Text("Also cover the screen when earbuds vanish (cased, dead, Bluetooth off). When off, the status still shows Gone but no new cover appears.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+
+                Divider()
+
                 // Fail-Secure Policy
                 Toggle(isOn: $manager.failSecureEnabled) {
                     VStack(alignment: .leading, spacing: 2) {

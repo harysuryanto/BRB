@@ -184,8 +184,7 @@ struct ContentView: View {
 
                 if let pinned = manager.pinnedName {
                     HStack {
-                        Image(systemName: "headphones")
-                            .foregroundColor(.accentColor)
+                        DeviceArtView(name: pinned, size: 40)
                         Text(pinned)
                             .font(.subheadline.bold())
                         Spacer()

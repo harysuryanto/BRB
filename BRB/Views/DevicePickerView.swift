@@ -172,16 +172,17 @@ private func deviceGradient(for name: String) -> (Color, Color) {
 
 private func sortedDeviceIDs(_ manager: ProximityManager) -> [String] {
     // Pure name order — pin state never moves cards. Named A–Z first,
-    // all unnamed last (strongest first so a moved bud can be identified).
+    // all unnamed last. Within unnamed, stable identifier order (NOT live
+    // RSSI): re-sorting on every signal fluctuation would reshuffle the
+    // grid several times a second and defeat appear/disappear animations.
+    // Identification still works — dBm and bars live-update on each card.
     manager.leAdverts.keys.sorted { a, b in
         let aName = manager.leAdverts[a]?.name ?? ""
         let bName = manager.leAdverts[b]?.name ?? ""
         let aUnnamed = isUnnamed(aName)
         let bUnnamed = isUnnamed(bName)
         if aUnnamed != bUnnamed { return bUnnamed }
-        if aUnnamed {
-            return (manager.leAdverts[a]?.rssi ?? -100) > (manager.leAdverts[b]?.rssi ?? -100)
-        }
+        if aUnnamed { return a < b }
         return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
     }
 }
@@ -190,15 +191,16 @@ private func sortedDeviceIDs(_ manager: ProximityManager) -> [String] {
 
 struct DeviceArtView: View {
     var name: String
+    var size: CGFloat = DS.deviceArtSize
 
     var body: some View {
         let (c1, c2) = deviceGradient(for: name)
         ZStack {
             RoundedRectangle(cornerRadius: DS.radius)
                 .fill(LinearGradient(colors: [c1, c2], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: DS.deviceArtSize, height: DS.deviceArtSize)
+                .frame(width: size, height: size)
             Image(systemName: safeSymbol(deviceSymbol(for: name)))
-                .font(.system(size: 28))
+                .font(.system(size: size * 0.44))
                 .foregroundColor(.white)
                 .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
         }
@@ -304,6 +306,7 @@ struct DevicePickerView: View {
     ]
 
     var body: some View {
+        let ids = sortedDeviceIDs(manager)
         VStack(alignment: .leading, spacing: DS.spacingSM) {
             HStack {
                 Text("Nearby devices")
@@ -312,7 +315,7 @@ struct DevicePickerView: View {
                 Spacer()
             }
 
-            if manager.leAdverts.isEmpty {
+            if ids.isEmpty {
                 VStack(spacing: DS.spacingSM) {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                         .font(.system(size: 32))
@@ -326,9 +329,10 @@ struct DevicePickerView: View {
                 .padding(DS.cardPad)
                 .background(DS.cardBg)
                 .cornerRadius(DS.radius)
+                .transition(.opacity)
             } else {
                 LazyVGrid(columns: columns, spacing: DS.deviceGridSpacing) {
-                    ForEach(sortedDeviceIDs(manager), id: \.self) { id in
+                    ForEach(ids, id: \.self) { id in
                         if let s = manager.leAdverts[id] {
                             DeviceCardView(
                                 id: id,
@@ -338,6 +342,10 @@ struct DevicePickerView: View {
                                 if manager.pinnedLEID == id { manager.unpinLEDevice() }
                                 else { manager.pinLEDevice(id: id) }
                             }
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.85).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                         }
                     }
                 }
@@ -346,5 +354,8 @@ struct DevicePickerView: View {
                     .foregroundColor(.secondary)
             }
         }
+        // Fires only when the id set/order changes (insert/remove) — live
+        // dBm/age text updates don't retrigger it.
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ids)
     }
 }

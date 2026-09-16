@@ -143,8 +143,7 @@ struct OnboardingView: View {
 
             if let pinned = manager.pinnedName {
                 HStack {
-                    Image(systemName: "headphones")
-                        .foregroundColor(.accentColor)
+                    DeviceArtView(name: pinned, size: 32)
                     Text("Pinned device: **\(pinned)**")
                         .font(.subheadline)
                     Spacer()

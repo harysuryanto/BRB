@@ -33,27 +33,20 @@ struct BRBApp: App {
 
     @ViewBuilder
     private var menuBarContent: some View {
-        // Status row
+        // NOTE: menu Text becomes native menu items (layout modifiers like
+        // .frame are ignored), so width stability comes from constant-width
+        // strings + always-visible rows — never appear/disappear or padding.
         Text(menuBarStatusText)
             .font(.headline)
 
         if let pinned = manager.pinnedName {
             Text("Device: \(pinned)")
-                .font(.caption)
-        }
-
-        if let rssi = manager.liveRSSI {
-            Text("Live RSSI: \(rssi) dBm (\(manager.liveKind))")
-                .font(.caption)
+                .font(.headline)
         }
 
         Divider()
 
         Toggle("Pause Protection", isOn: $manager.protectionPaused)
-
-        Button("Lock Mac Now") {
-            SessionLockManager.shared.lockScreen()
-        }
 
         Button("Open BRB Settings…") {
             NSApp.activate(ignoringOtherApps: true)

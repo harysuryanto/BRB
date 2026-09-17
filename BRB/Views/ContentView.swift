@@ -98,7 +98,14 @@ struct ContentView: View {
             .tabItem { Label(SettingsTab.security.title, systemImage: SettingsTab.security.icon) }
             .tag(SettingsTab.security)
         }
-        .frame(minWidth: DS.windowWidth, minHeight: DS.windowHeight)
+        .frame(
+            minWidth: DS.windowWidth,
+            idealWidth: DS.windowWidth,
+            maxWidth: .infinity,
+            minHeight: DS.windowHeight,
+            idealHeight: DS.windowHeight,
+            maxHeight: .infinity
+        )
     }
 
     // MARK: - Device Tab

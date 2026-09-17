@@ -22,7 +22,8 @@ struct BRBApp: App {
         WindowGroup("BRB Control Center", id: "main") {
             ContentView(manager: manager)
         }
-        .windowResizability(.contentSize)
+        .defaultSize(width: DS.windowWidth, height: DS.windowHeight)
+        .windowResizability(.contentMinSize)
 
         MenuBarExtra {
             menuBarContent

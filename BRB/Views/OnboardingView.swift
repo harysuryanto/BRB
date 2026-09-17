@@ -142,7 +142,14 @@ struct OnboardingView: View {
             }
         }
         .padding(DS.wizardOuterPad)
-        .frame(width: DS.windowWidth, height: DS.windowHeight)
+        .frame(
+            minWidth: DS.windowWidth,
+            idealWidth: DS.windowWidth,
+            maxWidth: .infinity,
+            minHeight: DS.windowHeight,
+            idealHeight: DS.windowHeight,
+            maxHeight: .infinity
+        )
     }
 
     // MARK: - Step 1: Bluetooth Permission

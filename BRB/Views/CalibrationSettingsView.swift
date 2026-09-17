@@ -104,8 +104,7 @@ struct CalibrationSettingsView: View {
                             }
 
                             if let pid = manager.pinnedLEID,
-                               let s = manager.leAdverts[pid],
-                               let chip = identityChip(for: s) {
+                               let chip = manager.identityChip(for: pid) {
                                 Text("• \(chip)")
                                     .font(.caption)
                                     .foregroundColor(.secondary)

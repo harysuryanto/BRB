@@ -70,18 +70,10 @@ func displayTitle(for id: String) -> String {
     return suffix.isEmpty ? "Unknown" : "Unknown • \(suffix)"
 }
 
-/// Device title: the real name when known, otherwise an honest, stable,
-/// differentiating placeholder. Yields automatically once GATT resolution
-/// replaces the "(unnamed)" sentinel.
-func displayTitle(for id: String, sample: AdvertSample) -> String {
-    if !isUnnamed(sample.name) { return sample.name }
-    return displayTitle(for: id)
-}
-
-/// Secondary identity chip for unnamed devices only: vendor, else Fast Pair
+/// Secondary identity chip for an unnamed sample: vendor, else Fast Pair
 /// hint (many buds advertise 0xFE2C instead of manufacturer data), else nil.
-/// Named devices get no chip — the name suffices.
-func identityChip(for sample: AdvertSample) -> String? {
+/// Named samples get no chip — the name suffices.
+func chipText(for sample: AdvertSample) -> String? {
     guard isUnnamed(sample.name) else { return nil }
     if let vendor = vendorName(for: sample.companyID) { return vendor }
     if sample.hasFastPairService { return "Fast Pair" }
@@ -112,6 +104,30 @@ class ProximityManager {
     var liveRSSIAt: Date? = nil
     var liveKind: String = "—"
 
+    // MARK: - Device Name Cache (persisted identity hints)
+
+    /// Last-known real identity for a peripheral identifier. Names are the
+    /// volatile half of device identity (user-renamable, advert-optional),
+    /// so this is a hint with an expiry — live data always wins, and a miss
+    /// degrades to the stable placeholder. Placeholders are never stored.
+    /// Local-only, same store as the pinned identifier.
+    struct CachedDevice: Codable {
+        var name: String
+        var companyID: UInt16?
+        var hasFastPair: Bool
+        var lastSeen: Date
+    }
+
+    private static let nameCacheKey = "BRB.deviceIdentities"
+    private static let nameCacheLimit = 30
+    private static let nameCacheTTL: TimeInterval = 30 * 86400 // 30 days
+    private static let nameCacheSaveThrottle: TimeInterval = 3600 // 1 hour
+
+    /// Identifier → last-known real identity. Session working copy of the
+    /// persisted cache; views never read it directly (see resolvedName).
+    private var nameCache: [String: CachedDevice] = [:]
+    private var lastNameCacheSave = Date.distantPast
+
     // MARK: - Pinned Device
     var pinnedLEID: String? {
         didSet {
@@ -135,10 +151,42 @@ class ProximityManager {
     /// no longer flip to "no device" mid-pin when adverts age out.
     var pinnedDisplayName: String? {
         guard let pinnedLEID else { return nil }
-        if let sample = leAdverts[pinnedLEID] {
-            return displayTitle(for: pinnedLEID, sample: sample)
-        }
-        return displayTitle(for: pinnedLEID)
+        return displayName(for: pinnedLEID)
+    }
+
+    /// Live-or-cached real name for an identifier (nil when neither knows one).
+    /// Single resolution point for every surface: live data always wins, the
+    /// cache covers advert gaps and cold starts, and a miss degrades to the
+    /// placeholder at the call site.
+    private func resolvedName(for id: String) -> String? {
+        if let live = leAdverts[id]?.name, !isUnnamed(live) { return live }
+        if let cached = nameCache[id]?.name, !isUnnamed(cached) { return cached }
+        return nil
+    }
+
+    /// Display name for any identifier on any surface.
+    func displayName(for id: String) -> String {
+        if let resolved = resolvedName(for: id) { return resolved }
+        return displayTitle(for: id)
+    }
+
+    /// Identity chip for any identifier: live vendor hints, else cached ones.
+    func identityChip(for id: String) -> String? {
+        if let sample = leAdverts[id], let chip = chipText(for: sample) { return chip }
+        guard let cached = nameCache[id] else { return nil }
+        let pseudo = AdvertSample(name: "(unnamed)", rssi: 0, at: .distantPast,
+                                  companyID: cached.companyID, hasFastPairService: cached.hasFastPair)
+        return chipText(for: pseudo)
+    }
+
+    /// Raw name for artwork categorization. Same precedence as displayName
+    /// (live-if-real, else cached-if-real, else "") so art changes only on
+    /// the same events as the title — a nameless packet must not flip a
+    /// known device back to generic art.
+    func artName(for id: String) -> String {
+        if let live = leAdverts[id]?.name, !isUnnamed(live) { return live }
+        if let cached = nameCache[id]?.name, !isUnnamed(cached) { return cached }
+        return ""
     }
 
     // MARK: - Configurable Thresholds & Settings (Persisted)
@@ -256,8 +304,45 @@ class ProximityManager {
         self.veilOnGoneEnabled = defaults.object(forKey: "BRB.veilOnGone") as? Bool ?? true
         self.veilLockMode = VeilLockMode(rawValue: defaults.string(forKey: "BRB.veilLockMode") ?? "") ?? .secure
         self.pinnedLEID = defaults.string(forKey: "BRB.pinnedLEID")
+        self.nameCache = Self.loadNameCache()
 
         setupLockAndVeilCallbacks()
+    }
+
+    private static func loadNameCache() -> [String: CachedDevice] {
+        guard let data = UserDefaults.standard.data(forKey: nameCacheKey),
+              let decoded = try? JSONDecoder().decode([String: CachedDevice].self, from: data) else {
+            return [:]
+        }
+        let cutoff = Date().addingTimeInterval(-nameCacheTTL)
+        return decoded.filter { $0.value.lastSeen >= cutoff }
+    }
+
+    private func saveNameCache() {
+        guard let data = try? JSONEncoder().encode(nameCache) else { return }
+        UserDefaults.standard.set(data, forKey: Self.nameCacheKey)
+    }
+
+    /// Upserts a real (never placeholder) identity sighting. Disk writes
+    /// happen on identity change, otherwise throttled — duplicates-mode
+    /// traffic (many packets/sec) must never hammer disk, while lastSeen
+    /// still advances often enough to keep daily-seen entries alive.
+    /// Evicts oldest-seen beyond the cap.
+    private func cacheIdentity(id: String, name: String, companyID: UInt16?, hasFastPair: Bool) {
+        guard !isUnnamed(name) else { return }
+        let previous = nameCache[id]
+        let changed = previous?.name != name || previous?.companyID != companyID
+            || previous?.hasFastPair != hasFastPair
+        nameCache[id] = CachedDevice(name: name, companyID: companyID,
+                                     hasFastPair: hasFastPair, lastSeen: Date())
+        if nameCache.count > Self.nameCacheLimit,
+           let evict = nameCache.min(by: { $0.value.lastSeen < $1.value.lastSeen })?.key {
+            nameCache.removeValue(forKey: evict)
+        }
+        if changed || Date().timeIntervalSince(lastNameCacheSave) > Self.nameCacheSaveThrottle {
+            lastNameCacheSave = Date()
+            saveNameCache()
+        }
     }
 
     private func setupLockAndVeilCallbacks() {
@@ -366,6 +451,11 @@ class ProximityManager {
                     companyID: companyID ?? previous?.companyID,
                     hasFastPairService: hasFastPair || (previous?.hasFastPairService ?? false)
                 )
+                if !isUnnamed(label) {
+                    self.cacheIdentity(id: key, name: label,
+                                       companyID: companyID ?? previous?.companyID,
+                                       hasFastPair: hasFastPair || (previous?.hasFastPairService ?? false))
+                }
 
                 let now = Date()
                 self.leAdverts = Dictionary(uniqueKeysWithValues:
@@ -388,6 +478,9 @@ class ProximityManager {
                 if var s = self.leAdverts[key], s.name == "(unnamed)" || s.name.isEmpty {
                     s.name = name
                     self.leAdverts[key] = s
+                    // GATT names are highest-trust: always overwrite the cache.
+                    self.cacheIdentity(id: key, name: name, companyID: s.companyID,
+                                       hasFastPair: s.hasFastPairService)
                 }
             }
         }

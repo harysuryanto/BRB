@@ -111,19 +111,19 @@ private enum DeviceCategory {
 // displayTitle, identityChip) live next to AdvertSample in
 // ProximityManager.swift — every surface uses the same source of truth.
 
-private func deviceSubtitle(for id: String, sample: AdvertSample) -> String {
+private func deviceSubtitle(for id: String, sample: AdvertSample, chip: String? = nil) -> String {
     var parts = [String(id.prefix(8)), ageString(since: sample.at)]
-    if let chip = identityChip(for: sample) { parts.append(chip) }
+    if let chip = chip ?? chipText(for: sample) { parts.append(chip) }
     return parts.joined(separator: " • ")
 }
 
 /// Stable hue in [0,1) from a string (FNV-1a — Swift Hasher is per-process
 /// random and must not drive UI identity).
 private func stableHue(for string: String) -> Double {
-    var hash: UInt64 = 14_695_981_037_519_876_973
+    var hash: UInt64 = 14_695_981_039_346_656_037 // FNV-1a 64 offset basis
     for byte in string.utf8 {
         hash ^= UInt64(byte)
-        hash &*= 1_096_221_633_775_19
+        hash &*= 1_099_511_628_211 // FNV-1a 64 prime
     }
     return Double(hash % 1000) / 1000.0
 }
@@ -263,6 +263,7 @@ enum PickerMode {
 }
 
 struct DeviceCardView: View {
+    var manager: ProximityManager
     var id: String
     var sample: AdvertSample
     var isSelected: Bool
@@ -279,7 +280,7 @@ struct DeviceCardView: View {
         Button(action: action) {
             VStack(spacing: DS.spacingSM) {
                 ZStack(alignment: .topTrailing) {
-                    DeviceArtView(name: sample.name, seed: id)
+                    DeviceArtView(name: manager.artName(for: id), seed: id)
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 20))
@@ -290,7 +291,7 @@ struct DeviceCardView: View {
                 }
                 .padding(.top, DS.spacingXS)
 
-                Text(displayTitle(for: id, sample: sample))
+                Text(manager.displayName(for: id))
                     .font(.subheadline.bold())
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -302,7 +303,7 @@ struct DeviceCardView: View {
                         .foregroundColor(stale ? .secondary : .primary)
                 }
 
-                Text(deviceSubtitle(for: id, sample: sample))
+                Text(deviceSubtitle(for: id, sample: sample, chip: manager.identityChip(for: id)))
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -330,11 +331,11 @@ struct DeviceCardView: View {
               : (isSelected ? "Selected — click again to deselect" : "Select this device"))
         .accessibilityLabel(mode == .live
             ? (isSelected
-               ? "Monitored, \(deviceCategory(for: sample.name).label), \(displayTitle(for: id, sample: sample)), \(sample.rssi) dBm. Activate to unpin."
-               : "Monitor \(deviceCategory(for: sample.name).label), \(displayTitle(for: id, sample: sample)), \(sample.rssi) dBm.")
+               ? "Monitored, \(deviceCategory(for: sample.name).label), \(manager.displayName(for: id)), \(sample.rssi) dBm. Activate to unpin."
+               : "Monitor \(deviceCategory(for: sample.name).label), \(manager.displayName(for: id)), \(sample.rssi) dBm.")
             : (isSelected
-               ? "Selected, \(deviceCategory(for: sample.name).label), \(displayTitle(for: id, sample: sample)), \(sample.rssi) dBm. Activate to deselect."
-               : "Select \(deviceCategory(for: sample.name).label), \(displayTitle(for: id, sample: sample)), \(sample.rssi) dBm."))
+               ? "Selected, \(deviceCategory(for: sample.name).label), \(manager.displayName(for: id)), \(sample.rssi) dBm. Activate to deselect."
+               : "Select \(deviceCategory(for: sample.name).label), \(manager.displayName(for: id)), \(sample.rssi) dBm."))
         .contextMenu {
             Button("Copy device ID") {
                 NSPasteboard.general.clearContents()
@@ -397,6 +398,7 @@ struct DevicePickerView: View {
                     ForEach(ids, id: \.self) { id in
                         if let s = manager.leAdverts[id] {
                             DeviceCardView(
+                                manager: manager,
                                 id: id,
                                 sample: s,
                                 isSelected: effectiveSelectedID == id,

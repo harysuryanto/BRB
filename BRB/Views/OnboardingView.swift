@@ -228,10 +228,9 @@ struct OnboardingView: View {
                 .foregroundColor(.secondary)
 
             if let id = draftPinnedID {
-                let sample = manager.leAdverts[id]
-                let name = sample.map { displayTitle(for: id, sample: $0) } ?? displayTitle(for: id)
+                let name = manager.displayName(for: id)
                 HStack {
-                    DeviceArtView(name: sample?.name ?? name, size: 32, seed: id)
+                    DeviceArtView(name: manager.artName(for: id), size: 32, seed: id)
                     Text("Selected device: **\(name)**")
                         .font(.subheadline)
                     Spacer()
@@ -292,10 +291,10 @@ struct OnboardingView: View {
                         Text("Device:")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(displayTitle(for: id, sample: sample))
+                        Text(manager.displayName(for: id))
                             .font(.caption.bold())
 
-                        if let chip = identityChip(for: sample) {
+                        if let chip = manager.identityChip(for: id) {
                             Text("•")
                                 .font(.caption)
                                 .foregroundColor(.secondary)

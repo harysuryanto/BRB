@@ -20,15 +20,13 @@ struct CalibrationSettingsView: View {
         effectiveReading != nil
     }
 
+    /// Smoothed-only display reading: what the engine acts on is what the UI
+    /// shows. Nil while no filtered sample exists (waiting state), never a
+    /// raw fallback.
     private var effectiveReading: Double? {
         guard manager.pinnedLEID != nil else { return nil }
         guard manager.presenceState != .gone, manager.presenceState != .idle else { return nil }
-        if let smoothed = manager.smoothedRSSI {
-            return smoothed
-        } else if let live = manager.liveRSSI {
-            return Double(live)
-        }
-        return nil
+        return manager.smoothedRSSI
     }
 
     var body: some View {
@@ -77,7 +75,7 @@ struct CalibrationSettingsView: View {
                         } else {
                             DSPill(text: "Monitored", tint: .green)
 
-                            if manager.isStale && manager.liveRSSI != nil {
+                            if manager.isStale && manager.smoothedRSSI != nil {
                                 DSPill(text: "Stale Signal", tint: .orange)
                             }
 
@@ -89,21 +87,13 @@ struct CalibrationSettingsView: View {
                         Text("Signal lost — earbuds may be in their case, out of Bluetooth range, or powered off.")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                    } else if let rssi = manager.liveRSSI {
+                    } else if let smoothed = manager.smoothedRSSI {
                         HStack(spacing: DS.spacingSM) {
-                            Text("Live:")
+                            Text("Signal:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("\(rssi) dBm (\(manager.liveKind))")
+                            Text("\(Int(round(smoothed))) dBm")
                                 .font(.system(.caption, design: .monospaced).bold())
-
-                            if let smoothed = manager.smoothedRSSI {
-                                Text("• Smoothed:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(String(format: "%.1f dBm", smoothed))
-                                    .font(.system(.caption, design: .monospaced).bold())
-                            }
 
                             if let age = manager.sampleAge {
                                 Text("• \(String(format: "%.1f", age))s ago")
@@ -120,9 +110,9 @@ struct CalibrationSettingsView: View {
 
                 Spacer()
 
-                if manager.presenceState != .gone, let rssi = manager.liveRSSI {
+                if manager.presenceState != .gone, let smoothed = manager.smoothedRSSI {
                     VStack(alignment: .trailing, spacing: DS.spacingXS) {
-                        SignalBarsView(rssi: rssi, stale: manager.isStale)
+                        SignalBarsView(rssi: Int(round(smoothed)), stale: manager.isStale)
                         if let reading = effectiveReading {
                             Text(estimatedDistanceString(for: reading))
                                 .font(.caption)

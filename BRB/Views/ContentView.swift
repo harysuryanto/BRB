@@ -145,21 +145,13 @@ struct ContentView: View {
 #endif
                     }
 
-                    if let rssi = manager.liveRSSI {
+                    if let smoothed = manager.smoothedRSSI {
                         HStack(spacing: DS.spacingSM) {
-                            Text("Live:")
+                            Text("Signal:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text("\(rssi) dBm (\(manager.liveKind))")
+                            Text("\(Int(round(smoothed))) dBm")
                                 .font(.system(.subheadline, design: .monospaced).bold())
-
-                            if let smoothed = manager.smoothedRSSI {
-                                Text("• Smoothed:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(String(format: "%.1f dBm", smoothed))
-                                    .font(.system(.subheadline, design: .monospaced).bold())
-                            }
                         }
                     } else {
                         Text(manager.leStatus)

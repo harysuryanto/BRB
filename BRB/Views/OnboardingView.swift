@@ -25,6 +25,11 @@ struct OnboardingView: View {
     @State private var draftVeilOff: Double
     /// Instant preview state (no grace — see draftReading below).
     @State private var previewCoverOn: Bool = false
+    /// Draft-side EMA (same α as the engine): the draft device is never
+    /// pinned, so the engine filter never runs for it. Smoothing here keeps
+    /// the preview, meter, and capture snapshot calm.
+    @State private var draftFilter = SignalProcessor(alpha: 0.8)
+    @State private var draftSmoothed: Double? = nil
 
     init(manager: ProximityManager = .shared, onComplete: @escaping () -> Void) {
         self.manager = manager
@@ -42,8 +47,8 @@ struct OnboardingView: View {
         return manager.leAdverts[id]
     }
 
-    /// Instant preview reading: advert RSSI, nil when absent/stale. Updated
-    /// per packet — deliberately no grace delay (setup is not live yet).
+    /// Raw advert RSSI feed for the draft filter, nil when absent/stale.
+    /// Updated per packet — deliberately no grace delay (setup is not live yet).
     private var draftReading: Int? {
         guard let s = draftSample,
               Date().timeIntervalSince(s.at) < 12 else { return nil }
@@ -51,7 +56,20 @@ struct OnboardingView: View {
     }
 
     private var doubleReading: Double? {
-        draftReading.map(Double.init)
+        draftSmoothed
+    }
+
+    /// Pushes the latest raw advert RSSI through the draft EMA filter.
+    /// Stale (nil) readings are never fed — the stale pill covers those.
+    private func feedDraftFilter() {
+        guard let raw = draftReading else { return }
+        draftSmoothed = draftFilter.process(rawRSSI: raw)
+    }
+
+    /// Clears draft smoothing (e.g. when the picked device changes).
+    private func resetDraftFilter() {
+        draftFilter.reset()
+        draftSmoothed = nil
     }
 
     private var draftIsStale: Bool {
@@ -60,10 +78,10 @@ struct OnboardingView: View {
         return Date().timeIntervalSince(s.at) >= 12
     }
 
-    private func applyPreview(reading: Int?) {
+    private func applyPreview(reading: Double?) {
         guard let reading else { previewCoverOn = false; return }
-        if reading <= Int(draftVeilOn.rounded()) { previewCoverOn = true }
-        else if reading >= Int(draftVeilOff.rounded()) { previewCoverOn = false }
+        if reading <= draftVeilOn { previewCoverOn = true }
+        else if reading >= draftVeilOff { previewCoverOn = false }
         // Between: hold last (hysteresis gap, no flicker).
     }
 
@@ -71,10 +89,11 @@ struct OnboardingView: View {
         guard draftPinnedID != nil else { return "Pick a device in the previous step to preview." }
         guard let s = draftSample else { return "Waiting for signal…" }
         if Date().timeIntervalSince(s.at) >= 12 { return "Signal stale — move the bud to refresh." }
+        let shown = doubleReading.map { Int(round($0)) } ?? s.rssi
         if previewCoverOn {
-            return "Signal \(s.rssi) dBm is below your \(Int(draftVeilOn)) dBm boundary."
+            return "Signal \(shown) dBm is below your \(Int(draftVeilOn)) dBm boundary."
         }
-        return "Signal \(s.rssi) dBm is above your \(Int(draftVeilOn)) dBm boundary."
+        return "Signal \(shown) dBm is above your \(Int(draftVeilOn)) dBm boundary."
     }
 
     var body: some View {
@@ -366,11 +385,12 @@ struct OnboardingView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .onChange(of: draftReading) { _, reading in applyPreview(reading: reading) }
+        .onAppear { feedDraftFilter(); applyPreview(reading: doubleReading) }
+        .onChange(of: draftReading) { _, _ in feedDraftFilter(); applyPreview(reading: doubleReading) }
         .onChange(of: draftIsStale) { _, stale in
-            if stale { previewCoverOn = false } else { applyPreview(reading: draftReading) }
+            if stale { previewCoverOn = false } else { feedDraftFilter(); applyPreview(reading: doubleReading) }
         }
-        .onChange(of: draftPinnedID) { _, _ in previewCoverOn = false }
+        .onChange(of: draftPinnedID) { _, _ in resetDraftFilter(); previewCoverOn = false }
     }
 }
 

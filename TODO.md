@@ -141,3 +141,25 @@ Tracking implementation progress against the [Product Requirements Document](PRD
 - [x] Mid-suppression earbud return: cancels suppression and restores normal monitoring.
 - [x] Procedural default veil image asset rendering.
 - [x] Full build verification and test runner execution (`Tests/EngineValidationTests.swift`).
+
+---
+
+## Phase 8: Stable Identity Across LE Identifier Rotation _(Parked)_
+
+> Parking note (2026-09-17): retention still does not survive case cycles.
+> Everything below is recorded so work can resume without redoing analysis.
+
+- [ ] **Symptom (user-observed, reproducible):** buds cased → reopened → back as Unknown cards; name reverts to `Unknown` every cycle; previously-visible hex changed value each cycle; pin/monitoring do not carry over.
+- [ ] **Root cause (established):** LE peripheral identifiers rotate across case cycles on this hardware (Classic A2DP pairing does not bond the LE side, so LE-privacy rotations surface new CB identifiers). Platform sources (Apple docs, Punch Through guide, field reports) confirm UUIDs are *not guaranteed stable* — usually long-lived, but observed rotating spontaneously with no reset. Everything UUID-keyed breaks: pin, name cache, suffix/tint seed, scanner rows, reader re-attach.
+- [ ] **Compounding finding (from on-disk + user answers):** post-cycle packets carry **no usable name** — `BRB.deviceIdentities` was never written despite live cards being visible across sessions, so passive learning is barren on this hardware; names likely exist only behind GATT. H2 (old build) ruled out: hex-free subtitles confirm the new build runs. The hex changing per cycle independently confirms rotation.
+- [ ] **Done (newest first):**
+  - [x] `e6c9f91` — Full name-keyed identity: `stableKey` (normalized name), `DeviceGroup` collapsing (one card per bud), pin-by-key + locator hint (`BRB.pinnedKey` / `BRB.pinnedUUIDHint`), silent re-link w/ 30s GATT re-aim throttle + transient note, reader name-follow (`matches(id:name:)`), vendor-sanity on adopt, legacy UUID-pin + UUID-keyed-cache migration, `2× seen` collision note. Scanner hex restored as an explicitly-labeled *session locator* (leading subtitle element; identity lives in title/key).
+  - [x] `26dedde` — `BRB.deviceIdentities` cache (30 entries / 30-day TTL, placeholders never stored); `artName` precedence aligned with title; FNV-1a constants corrected (one-time hue re-roll).
+  - [x] `24dcda6` — `Unknown • XXXX` titles, SIG-verified vendor chips + Fast Pair hint, id-seeded art tint, shared identity helpers, `pinnedDisplayName`.
+  - [x] `71be553` — monitored UI pin-gated (no phantom signal unpinned), reader pin cleared on unpin, `recordSample` pin guard.
+- [ ] **Next approaches, ranked (passive designs exhausted — post-cycle packets lack names):**
+  - [ ] **A (primary): Active GATT resolution queue.** Unnamed lingering singleton → connect → read `0x2A00`/`0x2A24` → disconnect → cache under the stable name. Once per UUID, concurrency 1, never disturbing the pinned link. The only method that learns names this hardware never advertises.
+  - [ ] **B (complement): Continuity/model + timing heuristic.** Unnamed new UUID + same vendor/model appearing as the old goes silent → provisional inherit, confirmed by A. Apple-leaning.
+  - [ ] **C (last resort): Manual nicknames.** Override tier above live names + edit UI. Separate feature, not a fix.
+- [ ] **Resume diagnostics (zero/low effort):** with the app running across a case cycle, `defaults read com.harysuryanto.brb` and compare `BRB.pinnedKey` / `BRB.pinnedUUIDHint` / `BRB.deviceIdentities` before vs after; note whether suffix/title/chip persisted. Gap: `lastRelink` is session-only (not persisted) — persist it if relink evidence must survive relaunch.
+- [ ] **Deferred:** re-link confirm dialog; serial-number (`0x2A25`) tiebreak; PRD doc updates (PRD still documents UUID pinning — stale).

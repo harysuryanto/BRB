@@ -50,6 +50,10 @@ struct OnboardingView: View {
         return s.rssi
     }
 
+    private var doubleReading: Double? {
+        draftReading.map(Double.init)
+    }
+
     private var draftIsStale: Bool {
         guard let id = draftPinnedID,
               let s = manager.leAdverts[id] else { return true }
@@ -194,7 +198,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 2: Device Selection
+    // MARK: - Step 2: Choose your Earbuds
     private var deviceStep: some View {
         VStack(alignment: .leading, spacing: DS.spacingLG) {
             Text("Step 2: Choose your Earbuds")
@@ -238,29 +242,118 @@ struct OnboardingView: View {
                 .font(.body)
                 .foregroundColor(.secondary)
 
-            SignalBarView(reading: draftReading, boundary: draftVeilOn, previewOn: previewCoverOn)
+            // Live Signal Range Gauge Card
+            VStack(alignment: .leading, spacing: DS.spacingMD) {
+                HStack {
+                    Text("Live Signal Range Gauge")
+                        .font(.subheadline.bold())
+
+                    Spacer()
+
+                    if let reading = doubleReading, !draftIsStale {
+                        if reading <= draftVeilOn {
+                            DSPill(text: "Away Zone (Cover On)", tint: .orange)
+                        } else if reading >= draftVeilOff {
+                            DSPill(text: "Desk Zone (Cover Off)", tint: .green)
+                        } else {
+                            DSPill(text: "Buffer Zone (Holding)", tint: .blue)
+                        }
+                    } else if draftIsStale && draftSample != nil {
+                        DSPill(text: "Signal Stale", tint: .orange)
+                    } else if draftPinnedID != nil {
+                        DSPill(text: "Waiting for Signal", tint: .secondary)
+                    } else {
+                        DSPill(text: "No Device Selected", tint: .secondary)
+                    }
+                }
+
+                if let sample = draftSample {
+                    HStack(spacing: DS.spacingSM) {
+                        Text("Device:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(sample.name)
+                            .font(.caption.bold())
+
+                        if let reading = doubleReading {
+                            Text("•")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("\(Int(round(reading))) dBm")
+                                .font(.system(.caption, design: .monospaced).bold())
+                            Text("•")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(estimatedDistanceString(for: reading))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                CalibrationRangeMeterView(
+                    reading: doubleReading,
+                    isStale: draftIsStale,
+                    veilOn: draftVeilOn,
+                    veilOff: draftVeilOff
+                )
+
+                // Zone Legend
+                HStack(spacing: DS.spacingMD) {
+                    HStack(spacing: DS.spacingXS) {
+                        Circle().fill(Color.orange).frame(width: 8, height: 8)
+                        Text("Away: ≤ \(Int(draftVeilOn)) dBm")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: DS.spacingXS) {
+                        Circle().fill(Color.blue).frame(width: 8, height: 8)
+                        let gap = Int(round(draftVeilOff - draftVeilOn))
+                        Text("Buffer: \(gap >= 0 ? "+\(gap)" : "\(gap)") dBm gap")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: DS.spacingXS) {
+                        Circle().fill(Color.green).frame(width: 8, height: 8)
+                        Text("Desk: ≥ \(Int(draftVeilOff)) dBm")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.top, DS.spacingXS)
+            }
+            .padding(DS.cardPad)
+            .background(DS.emphasisBg())
+            .cornerRadius(DS.radius)
 
             HStack(spacing: DS.spacingMD) {
-                Button("Capture Away Boundary (~2m)") {
-                    let ref = Double(draftSample?.rssi ?? -80)
+                let currentCaptured = doubleReading.map { Int(round($0)) }
+                Button(currentCaptured != nil ? "Capture Away Boundary (\(currentCaptured!) dBm)" : "Capture Away Boundary (~2m)") {
+                    let ref = doubleReading ?? -80.0
                     draftVeilOn = ref
                     draftVeilOff = ref + 6.0
                     calibrationCaptured = ref
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
 
                 Button("Use Recommended Default (-80 dBm)") {
                     draftVeilOn = -80.0
                     draftVeilOff = -74.0
                     calibrationCaptured = -80.0
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.bordered)
             }
 
             if let captured = calibrationCaptured {
                 DSBanner(
                     icon: "checkmark.circle.fill",
-                    text: "Boundary set to \(Int(captured)) dBm (Veil activates below this).",
+                    text: "Boundary set to \(Int(captured)) dBm (Veil activates below this, lifts at \(Int(captured + 6)) dBm).",
                     tint: .green
                 )
             }
@@ -281,122 +374,6 @@ struct OnboardingView: View {
     }
 }
 
-// MARK: - Signal bar (live setup gauge — no fullscreen during setup)
-
-/// Straight horizontal gauge mapping draft advert RSSI to person position:
-/// left = near (strong), right = far (weak). Fixed −50…−95 dBm window (same
-/// bounds as the Calibration sliders), so the boundary tick visibly travels
-/// when you Capture or reset. Instant (no grace): setup is not live yet.
-/// The human needle glides per packet.
-private struct SignalBarView: View {
-    var reading: Int?
-    var boundary: Double
-    var previewOn: Bool
-
-    private let minV: Double = -95
-    private let maxV: Double = -50
-
-    private func fraction(_ rssi: Double) -> Double {
-        min(1, max(0, (rssi - minV) / (maxV - minV)))
-    }
-
-    var body: some View {
-        VStack(spacing: DS.spacingSM) {
-            HStack {
-                Text("Live Signal")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                if let reading {
-                    Text("\(reading) dBm")
-                        .font(.system(.subheadline, design: .monospaced).bold())
-                } else {
-                    Text("—")
-                        .font(.system(.subheadline, design: .monospaced).bold())
-                        .foregroundColor(.secondary)
-                }
-                DSPill(text: previewOn ? "Cover On" : "Cover Off", tint: previewOn ? .orange : .green)
-            }
-
-            GeometryReader { geo in
-                let w = geo.size.width
-                let bx = (1 - fraction(boundary)) * w
-                ZStack(alignment: .topLeading) {
-                    // Zone bar with a hard stop at the boundary.
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(zoneFill(total: w, split: bx))
-                        .frame(height: 10)
-                        .offset(y: 34)
-                    // Boundary tick.
-                    Rectangle()
-                        .fill(Color.primary)
-                        .frame(width: 2, height: 18)
-                        .offset(x: bx - 1, y: 30)
-                    // Human needle.
-                    if let reading {
-                        Image(systemName: "figure.walk")
-                            .font(.system(size: 24))
-                            .foregroundColor(previewOn ? .orange : .green)
-                            .offset(x: (1 - fraction(Double(reading))) * w - 12, y: 2)
-                            // Slow glide (packets retarget several×/s): reads as
-                            // a person walking, not a needle jumping.
-                            .animation(.easeInOut(duration: 0.9), value: reading)
-                    }
-                }
-            }
-            .frame(height: 50)
-            // Boundary tick and zones glide when Capture/Default moves it.
-            .animation(.easeOut(duration: 0.3), value: boundary)
-
-            HStack {
-                Text("Near \(Int(maxV))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Text("\(Int(boundary))")
-                    .font(.system(.caption, design: .monospaced).bold())
-                Spacer()
-                Text("Far \(Int(minV))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(DS.cardPad)
-        .background(DS.emphasisBg())
-        .cornerRadius(DS.radius)
-        .animation(.easeOut(duration: 0.25), value: previewOn)
-    }
-
-    private func zoneFill(total w: CGFloat, split bx: CGFloat) -> LinearGradient {
-        let f = w > 0 ? Double(bx / w) : 0.5
-        let near: Color = reading == nil ? .secondary : .green
-        let far: Color = reading == nil ? .secondary : .orange
-        return LinearGradient(
-            stops: [
-                .init(color: near.opacity(previewOn ? 0.35 : 1.0), location: 0),
-                .init(color: near.opacity(previewOn ? 0.35 : 1.0), location: f),
-                .init(color: far.opacity(previewOn ? 1.0 : 0.35), location: f),
-                .init(color: far.opacity(previewOn ? 1.0 : 0.35), location: 1),
-            ],
-            startPoint: .leading, endPoint: .trailing
-        )
-    }
-}
-
-#Preview("Signal Bar — Near") {
-    SignalBarView(reading: -62, boundary: -80, previewOn: false)
-        .padding()
-        .frame(width: 560)
-}
-
-#Preview("Signal Bar — Far") {
-    SignalBarView(reading: -88, boundary: -80, previewOn: true)
-        .padding()
-        .frame(width: 560)
-}
-
-#Preview("Signal Bar — Waiting") {
-    SignalBarView(reading: nil, boundary: -80, previewOn: false)
-        .padding()
-        .frame(width: 560)
+#Preview("Onboarding — Step 3") {
+    OnboardingView(manager: .previewMock) {}
 }

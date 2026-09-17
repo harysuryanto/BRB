@@ -145,7 +145,8 @@ struct ContentView: View {
 #endif
                     }
 
-                    if let smoothed = manager.smoothedRSSI {
+                    // Monitored signal only: no pin, no signal lines.
+                    if manager.pinnedLEID != nil, let smoothed = manager.smoothedRSSI {
                         HStack(spacing: DS.spacingSM) {
                             Text("Signal:")
                                 .font(.caption)
@@ -153,13 +154,13 @@ struct ContentView: View {
                             Text("\(Int(round(smoothed))) dBm")
                                 .font(.system(.subheadline, design: .monospaced).bold())
                         }
-                    } else {
+                    } else if manager.pinnedLEID != nil {
                         Text(manager.leStatus)
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
 
-                    if let age = manager.sampleAge {
+                    if manager.pinnedLEID != nil, let age = manager.sampleAge {
                         Text("Sample age: \(String(format: "%.1f", age))s \(manager.isStale ? "(stale)" : "")")
                             .font(.caption)
                             .foregroundColor(manager.isStale ? .orange : .secondary)
@@ -214,7 +215,8 @@ struct ContentView: View {
                     }
                 }
 
-                if let pinned = manager.pinnedName {
+                // Gate on pin state, not name resolvability (see liveSignalCard).
+                if let pinned = manager.pinnedDisplayName {
                     HStack {
                         DeviceArtView(name: pinned, size: 40)
                         Text(pinned)

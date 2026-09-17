@@ -61,7 +61,9 @@ struct CalibrationSettingsView: View {
     // MARK: - 1. Live Signal Card
     @ViewBuilder
     private var liveSignalCard: some View {
-        if let pinnedName = manager.pinnedName, manager.pinnedLEID != nil {
+        // Gate on pin state, not name resolvability: a GATT-held bud stops
+        // advertising and its cached name ages out, but monitoring continues.
+        if let pinnedName = manager.pinnedDisplayName, manager.pinnedLEID != nil {
             HStack(alignment: .center, spacing: DS.spacingMD) {
                 DeviceArtView(name: pinnedName, size: 44)
 

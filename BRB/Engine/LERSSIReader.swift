@@ -52,7 +52,10 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
 
     func start(targetName: String, pinnedID: UUID? = nil) {
         self.targetName = targetName
-        if let pinnedID { self.pinnedID = pinnedID }
+        // Unconditional: a nil pin (unpin path) must clear the previous
+        // identifier, otherwise the reader keeps id-only matching the old
+        // bud and re-attaches to it after unpinning.
+        self.pinnedID = pinnedID
         if central == nil {
             central = CBCentralManager(delegate: self, queue: nil)
         } else if central?.state == .poweredOn {

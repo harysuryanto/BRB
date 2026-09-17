@@ -40,7 +40,9 @@ struct BRBApp: App {
         Text(menuBarStatusText)
             .font(.headline)
 
-        if let pinned = manager.pinnedName {
+        // Pin-gated (not name-gated) so the row never vanishes mid-pin when
+        // the cached advert name ages out — see pinnedDisplayName.
+        if let pinned = manager.pinnedDisplayName {
             Text("Device: \(pinned)")
                 .font(.headline)
         }

@@ -57,6 +57,19 @@ class ProximityManager {
         return leAdverts[pinnedLEID]?.name
     }
 
+    /// Never-blank monitored identity: the resolved advert name when the
+    /// pinned device is currently advertising, otherwise a short-identifier
+    /// fallback. Nil only when nothing is pinned — views gate monitored UI
+    /// on pin state, never on name resolvability, so the monitored card can
+    /// no longer flip to "no device" mid-pin when adverts age out.
+    var pinnedDisplayName: String? {
+        guard let pinnedLEID else { return nil }
+        if let name = leAdverts[pinnedLEID]?.name, !name.isEmpty {
+            return name
+        }
+        return "Device \(pinnedLEID.prefix(8))"
+    }
+
     // MARK: - Configurable Thresholds & Settings (Persisted)
     var veilOnThreshold: Double {
         didSet { UserDefaults.standard.set(veilOnThreshold, forKey: "BRB.veilOnThreshold") }
@@ -426,6 +439,9 @@ class ProximityManager {
     }
 
     private func recordSample(rssi: Int, kind: String) {
+        // Unpinned samples (e.g. an in-flight GATT read landing after unpin)
+        // must never repopulate the monitored signal — no pin, no signal.
+        guard pinnedLEID != nil else { return }
         let now = Date()
         // Stale-EMA reset: if the previous sample is older than the freshness
         // horizon, the old smoothed value describes a different situation

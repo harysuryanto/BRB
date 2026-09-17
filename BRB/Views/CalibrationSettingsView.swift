@@ -12,7 +12,17 @@ struct CalibrationSettingsView: View {
     @Bindable var manager: ProximityManager
     var onGoToDeviceTab: (() -> Void)? = nil
 
+    /// Whether there is a currently pinned device with an active, non-gone signal.
+    private var hasActiveSignal: Bool {
+        manager.pinnedLEID != nil &&
+        manager.presenceState != .gone &&
+        manager.presenceState != .idle &&
+        effectiveReading != nil
+    }
+
     private var effectiveReading: Double? {
+        guard manager.pinnedLEID != nil else { return nil }
+        guard manager.presenceState != .gone, manager.presenceState != .idle else { return nil }
         if let smoothed = manager.smoothedRSSI {
             return smoothed
         } else if let live = manager.liveRSSI {
@@ -36,8 +46,10 @@ struct CalibrationSettingsView: View {
             // 1. Live Signal & Device Status Card
             liveSignalCard
 
-            // 2. Interactive Range & Threshold Gauge
-            signalGaugeCard
+            // 2. Interactive Range & Threshold Gauge (only when actively receiving signal from pinned earbuds)
+            if hasActiveSignal {
+                signalGaugeCard
+            }
 
             // 3. Threshold Sliders & Hysteresis
             thresholdSlidersCard
@@ -51,7 +63,7 @@ struct CalibrationSettingsView: View {
     // MARK: - 1. Live Signal Card
     @ViewBuilder
     private var liveSignalCard: some View {
-        if let pinnedName = manager.pinnedName {
+        if let pinnedName = manager.pinnedName, manager.pinnedLEID != nil {
             HStack(alignment: .center, spacing: DS.spacingMD) {
                 DeviceArtView(name: pinnedName, size: 44)
 
@@ -60,16 +72,24 @@ struct CalibrationSettingsView: View {
                         Text(pinnedName)
                             .font(.subheadline.bold())
 
-                        DSPill(text: "Monitored", tint: .green)
+                        if manager.presenceState == .gone {
+                            DSPill(text: "Device Gone", tint: .red)
+                        } else {
+                            DSPill(text: "Monitored", tint: .green)
 
-                        if manager.isStale && manager.liveRSSI != nil {
-                            DSPill(text: "Stale Signal", tint: .orange)
+                            if manager.isStale && manager.liveRSSI != nil {
+                                DSPill(text: "Stale Signal", tint: .orange)
+                            }
+
+                            currentZonePill
                         }
-
-                        currentZonePill
                     }
 
-                    if let rssi = manager.liveRSSI {
+                    if manager.presenceState == .gone {
+                        Text("Signal lost — earbuds may be in their case, out of Bluetooth range, or powered off.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else if let rssi = manager.liveRSSI {
                         HStack(spacing: DS.spacingSM) {
                             Text("Live:")
                                 .font(.caption)
@@ -92,7 +112,7 @@ struct CalibrationSettingsView: View {
                             }
                         }
                     } else {
-                        Text("Waiting for signal packets... Move or wear your earbuds to wake them.")
+                        Text("Waiting for signal packets… Move or wear your earbuds to wake them.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -100,7 +120,7 @@ struct CalibrationSettingsView: View {
 
                 Spacer()
 
-                if let rssi = manager.liveRSSI {
+                if manager.presenceState != .gone, let rssi = manager.liveRSSI {
                     VStack(alignment: .trailing, spacing: DS.spacingXS) {
                         SignalBarsView(rssi: rssi, stale: manager.isStale)
                         if let reading = effectiveReading {
@@ -319,7 +339,7 @@ struct CalibrationSettingsView: View {
             HStack(spacing: DS.spacingMD) {
                 let currentCaptured = effectiveReading.map { Int(round($0)) }
                 Button(currentCaptured != nil ? "Calibrate Away Boundary (\(currentCaptured!) dBm)" : "Calibrate Away Boundary (~2m)") {
-                    manager.calibrateAwayBoundary()
+                    manager.calibrateAwayBoundary(currentRSSI: effectiveReading)
                 }
                 .buttonStyle(.borderedProminent)
 
@@ -458,11 +478,11 @@ struct CalibrationRangeMeterView: View {
                                 Capsule()
                                     .stroke(isStale ? Color.secondary : zoneColor, lineWidth: 1.5)
                             )
-                            .foregroundColor(isStale ? .secondary : (zoneColor == .blue ? .accentColor : zoneColor))
+                            .foregroundColor(isStale ? .secondary : zoneColor)
 
                             Image(systemName: "triangle.fill")
                                 .font(.system(size: 7))
-                                .foregroundColor(isStale ? .secondary : (zoneColor == .blue ? .accentColor : zoneColor))
+                                .foregroundColor(isStale ? .secondary : zoneColor)
                                 .rotationEffect(.degrees(180))
                                 .offset(y: -1)
                         }

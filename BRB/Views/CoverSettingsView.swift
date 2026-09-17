@@ -150,31 +150,6 @@ struct CoverSettingsView: View {
                 )
             }
 
-            Divider()
-
-            // Cover Lock Mode
-            VStack(alignment: .leading, spacing: DS.spacingSM) {
-                Text("Cover Lock")
-                    .font(.subheadline.bold())
-                Picker("Cover Lock", selection: $manager.veilLockMode) {
-                    Text("Secure").tag(VeilLockMode.secure)
-                    Text("Casual").tag(VeilLockMode.casual)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                if manager.veilLockMode == .secure {
-                    Text("Secure: the cover lifts only when your device returns or via Mac login. Real protection.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("Casual: adds a Hide button that lifts the cover with no login — aesthetic only, anyone nearby can click it.")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                }
-            }
-            .padding(DS.cardPad)
-            .background(DS.cardBg)
-            .cornerRadius(DS.radius)
         }
         .padding(DS.outerPad)
     }

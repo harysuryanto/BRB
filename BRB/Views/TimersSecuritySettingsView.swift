@@ -89,6 +89,33 @@ struct TimersSecuritySettingsView: View {
 
                 Divider()
 
+                // Cover Lock Mode
+                VStack(alignment: .leading, spacing: DS.spacingSM) {
+                    HStack {
+                        Text("Cover Lock")
+                            .font(.subheadline.bold())
+                        Spacer()
+                        Picker("Cover Lock", selection: $manager.veilLockMode) {
+                            Text("Secure").tag(VeilLockMode.secure)
+                            Text("Casual").tag(VeilLockMode.casual)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                    if manager.veilLockMode == .secure {
+                        Text("Secure: the cover lifts only when your device returns or via Mac login. Real protection.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Casual: adds a Hide button that lifts the cover with no login — aesthetic only, anyone nearby can click it.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+                }
+
+                Divider()
+
                 // Fail-Secure Policy
                 HStack {
                     VStack(alignment: .leading, spacing: DS.spacingXS) {

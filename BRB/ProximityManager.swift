@@ -15,6 +15,77 @@ struct AdvertSample: Codable {
     var name: String
     var rssi: Int
     var at: Date
+    /// Bluetooth SIG manufacturer company ID from the packet's manufacturer
+    /// data (nil when absent — many buds advertise Fast Pair instead).
+    var companyID: UInt16? = nil
+    /// Whether Google Fast Pair service data (0xFE2C) was present.
+    var hasFastPairService: Bool = false
+}
+
+// MARK: - Device identity (single source of truth for every surface)
+//
+// Scanner cards, monitored cards, onboarding, and the menu bar all render
+// device identity through these helpers — never raw AdvertSample.name — so
+// art and naming stay consistent everywhere.
+
+/// Whether the stored name is a placeholder rather than a real device name.
+func isUnnamed(_ name: String) -> Bool {
+    let n = name.trimmingCharacters(in: .whitespaces)
+    return n.isEmpty || n.lowercased().contains("(unnamed)")
+}
+
+/// SIG-verified manufacturer company IDs for audio/wearable-relevant vendors.
+/// Unmapped IDs show no chip (silent fallback) — never invent a vendor.
+func vendorName(for companyID: UInt16?) -> String? {
+    guard let companyID else { return nil }
+    switch companyID {
+    case 0x004C: return "Apple"
+    case 0x0075: return "Samsung"
+    case 0x012D: return "Sony"
+    case 0x009E: return "Bose"
+    case 0x00E0: return "Google"
+    case 0x0006: return "Microsoft"
+    case 0x0057: return "Harman"
+    case 0x0055: return "Poly"
+    case 0x0082: return "Sennheiser"
+    case 0x0087: return "Garmin"
+    case 0x006B: return "Polar"
+    case 0x008A: return "Jawbone"
+    case 0x0059: return "Nordic"
+    case 0x005D: return "Realtek"
+    default: return nil
+    }
+}
+
+/// Stable 4-hex device suffix from the identifier. Suffix (not prefix) avoids
+/// duplicating the prefix-8 shown in scanner subtitles. Deterministic
+/// across launches — macOS identifiers are per-peripheral stable.
+func deviceSuffix(for id: String) -> String {
+    String(id.filter { $0.isHexDigit }.suffix(4)).uppercased()
+}
+
+/// Placeholder title when no sample exists at all (advert fully aged out).
+func displayTitle(for id: String) -> String {
+    let suffix = deviceSuffix(for: id)
+    return suffix.isEmpty ? "Unknown" : "Unknown • \(suffix)"
+}
+
+/// Device title: the real name when known, otherwise an honest, stable,
+/// differentiating placeholder. Yields automatically once GATT resolution
+/// replaces the "(unnamed)" sentinel.
+func displayTitle(for id: String, sample: AdvertSample) -> String {
+    if !isUnnamed(sample.name) { return sample.name }
+    return displayTitle(for: id)
+}
+
+/// Secondary identity chip for unnamed devices only: vendor, else Fast Pair
+/// hint (many buds advertise 0xFE2C instead of manufacturer data), else nil.
+/// Named devices get no chip — the name suffices.
+func identityChip(for sample: AdvertSample) -> String? {
+    guard isUnnamed(sample.name) else { return nil }
+    if let vendor = vendorName(for: sample.companyID) { return vendor }
+    if sample.hasFastPairService { return "Fast Pair" }
+    return nil
 }
 
 /// How dismissible the veil cover is.
@@ -57,17 +128,17 @@ class ProximityManager {
         return leAdverts[pinnedLEID]?.name
     }
 
-    /// Never-blank monitored identity: the resolved advert name when the
-    /// pinned device is currently advertising, otherwise a short-identifier
-    /// fallback. Nil only when nothing is pinned — views gate monitored UI
+    /// Never-blank monitored identity, consistent with scanner cards: the
+    /// resolved name when known, otherwise the stable "Unknown • XXXX"
+    /// placeholder. Nil only when nothing is pinned — views gate monitored UI
     /// on pin state, never on name resolvability, so the monitored card can
     /// no longer flip to "no device" mid-pin when adverts age out.
     var pinnedDisplayName: String? {
         guard let pinnedLEID else { return nil }
-        if let name = leAdverts[pinnedLEID]?.name, !name.isEmpty {
-            return name
+        if let sample = leAdverts[pinnedLEID] {
+            return displayTitle(for: pinnedLEID, sample: sample)
         }
-        return "Device \(pinnedLEID.prefix(8))"
+        return displayTitle(for: pinnedLEID)
     }
 
     // MARK: - Configurable Thresholds & Settings (Persisted)
@@ -279,12 +350,22 @@ class ProximityManager {
             }
         }
 
-        reader.onAdvertisement = { [weak self] id, name, rssi in
+        reader.onAdvertisement = { [weak self] id, name, rssi, companyID, hasFastPair in
             DispatchQueue.main.async {
                 guard let self else { return }
                 let key = id.uuidString
                 let label = name.isEmpty ? "(unnamed)" : name
-                self.leAdverts[key] = AdvertSample(name: label, rssi: rssi, at: Date())
+                // Vendor hints can vary packet to packet (advert vs. scan
+                // response) — prefer the fresh value, keep the previous one
+                // as fallback so the chip doesn't flicker.
+                let previous = self.leAdverts[key]
+                self.leAdverts[key] = AdvertSample(
+                    name: label,
+                    rssi: rssi,
+                    at: Date(),
+                    companyID: companyID ?? previous?.companyID,
+                    hasFastPairService: hasFastPair || (previous?.hasFastPairService ?? false)
+                )
 
                 let now = Date()
                 self.leAdverts = Dictionary(uniqueKeysWithValues:
@@ -639,7 +720,7 @@ extension ProximityManager {
         mock.presenceState = .near
         mock.leAdverts = [
             "AAAAAAAA-0000-0000-0000-000000000001": AdvertSample(name: "AirPods Pro", rssi: -55, at: Date()),
-            "AAAAAAAA-0000-0000-0000-000000000002": AdvertSample(name: "(unnamed)", rssi: -72, at: Date())
+            "AAAAAAAA-0000-0000-0000-000000000002": AdvertSample(name: "(unnamed)", rssi: -72, at: Date(), companyID: 0x004C),
         ]
         mock.pinnedLEID = "AAAAAAAA-0000-0000-0000-000000000001"
         return mock

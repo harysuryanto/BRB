@@ -65,7 +65,7 @@ struct CalibrationSettingsView: View {
         // advertising and its cached name ages out, but monitoring continues.
         if let pinnedName = manager.pinnedDisplayName, manager.pinnedLEID != nil {
             HStack(alignment: .center, spacing: DS.spacingMD) {
-                DeviceArtView(name: pinnedName, size: 44)
+                DeviceArtView(name: manager.pinnedName ?? pinnedName, size: 44, seed: manager.pinnedLEID)
 
                 VStack(alignment: .leading, spacing: DS.spacingXS) {
                     HStack(spacing: DS.spacingSM) {
@@ -101,6 +101,14 @@ struct CalibrationSettingsView: View {
                                 Text("• \(String(format: "%.1f", age))s ago")
                                     .font(.caption)
                                     .foregroundColor(manager.isStale ? .orange : .secondary)
+                            }
+
+                            if let pid = manager.pinnedLEID,
+                               let s = manager.leAdverts[pid],
+                               let chip = identityChip(for: s) {
+                                Text("• \(chip)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
                     } else {

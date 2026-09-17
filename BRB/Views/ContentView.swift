@@ -218,7 +218,7 @@ struct ContentView: View {
                 // Gate on pin state, not name resolvability (see liveSignalCard).
                 if let pinned = manager.pinnedDisplayName {
                     HStack {
-                        DeviceArtView(name: pinned, size: 40)
+                        DeviceArtView(name: manager.pinnedName ?? pinned, size: 40, seed: manager.pinnedLEID)
                         Text(pinned)
                             .font(.subheadline.bold())
                         Spacer()

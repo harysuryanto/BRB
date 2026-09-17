@@ -106,9 +106,26 @@ private enum DeviceCategory {
     }
 }
 
-private func isUnnamed(_ name: String) -> Bool {
-    let n = name.trimmingCharacters(in: .whitespaces)
-    return n.isEmpty || n.lowercased().contains("(unnamed)")
+// MARK: - Device identity
+// Shared identity helpers (isUnnamed, vendorName, deviceSuffix,
+// displayTitle, identityChip) live next to AdvertSample in
+// ProximityManager.swift — every surface uses the same source of truth.
+
+private func deviceSubtitle(for id: String, sample: AdvertSample) -> String {
+    var parts = [String(id.prefix(8)), ageString(since: sample.at)]
+    if let chip = identityChip(for: sample) { parts.append(chip) }
+    return parts.joined(separator: " • ")
+}
+
+/// Stable hue in [0,1) from a string (FNV-1a — Swift Hasher is per-process
+/// random and must not drive UI identity).
+private func stableHue(for string: String) -> Double {
+    var hash: UInt64 = 14_695_981_037_519_876_973
+    for byte in string.utf8 {
+        hash ^= UInt64(byte)
+        hash &*= 1_096_221_633_775_19
+    }
+    return Double(hash % 1000) / 1000.0
 }
 
 private func deviceCategory(for name: String) -> DeviceCategory {
@@ -192,9 +209,21 @@ private func sortedDeviceIDs(_ manager: ProximityManager) -> [String] {
 struct DeviceArtView: View {
     var name: String
     var size: CGFloat = DS.deviceArtSize
+    /// Stable per-device tint seed (identifier). Tints only the generic
+    /// unknown art so unnamed cards are visually distinct without implying
+    /// a device type we don't know. Nil = category gradient as before.
+    var seed: String? = nil
 
     var body: some View {
-        let (c1, c2) = deviceGradient(for: name)
+        let (c1, c2): (Color, Color) = {
+            if let seed, deviceCategory(for: name) == .unknown {
+                let h = stableHue(for: seed)
+                return (Color(hue: h, saturation: 0.55, brightness: 0.45),
+                        Color(hue: (h + 0.08).truncatingRemainder(dividingBy: 1.0),
+                              saturation: 0.6, brightness: 0.3))
+            }
+            return deviceGradient(for: name)
+        }()
         ZStack {
             RoundedRectangle(cornerRadius: DS.radius)
                 .fill(LinearGradient(colors: [c1, c2], startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -250,7 +279,7 @@ struct DeviceCardView: View {
         Button(action: action) {
             VStack(spacing: DS.spacingSM) {
                 ZStack(alignment: .topTrailing) {
-                    DeviceArtView(name: sample.name)
+                    DeviceArtView(name: sample.name, seed: id)
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 20))
@@ -261,7 +290,7 @@ struct DeviceCardView: View {
                 }
                 .padding(.top, DS.spacingXS)
 
-                Text(sample.name)
+                Text(displayTitle(for: id, sample: sample))
                     .font(.subheadline.bold())
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -273,7 +302,7 @@ struct DeviceCardView: View {
                         .foregroundColor(stale ? .secondary : .primary)
                 }
 
-                Text("\(String(id.prefix(8))) • \(ageString(since: sample.at))")
+                Text(deviceSubtitle(for: id, sample: sample))
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -301,11 +330,11 @@ struct DeviceCardView: View {
               : (isSelected ? "Selected — click again to deselect" : "Select this device"))
         .accessibilityLabel(mode == .live
             ? (isSelected
-               ? "Monitored, \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm. Activate to unpin."
-               : "Monitor \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm.")
+               ? "Monitored, \(deviceCategory(for: sample.name).label), \(displayTitle(for: id, sample: sample)), \(sample.rssi) dBm. Activate to unpin."
+               : "Monitor \(deviceCategory(for: sample.name).label), \(displayTitle(for: id, sample: sample)), \(sample.rssi) dBm.")
             : (isSelected
-               ? "Selected, \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm. Activate to deselect."
-               : "Select \(deviceCategory(for: sample.name).label), \(sample.name), \(sample.rssi) dBm."))
+               ? "Selected, \(deviceCategory(for: sample.name).label), \(displayTitle(for: id, sample: sample)), \(sample.rssi) dBm. Activate to deselect."
+               : "Select \(deviceCategory(for: sample.name).label), \(displayTitle(for: id, sample: sample)), \(sample.rssi) dBm."))
         .contextMenu {
             Button("Copy device ID") {
                 NSPasteboard.general.clearContents()
@@ -383,7 +412,7 @@ struct DevicePickerView: View {
                     }
                 }
                 Text(mode == .live
-                      ? "Tap a card to monitor — named A–Z, unnamed at the end."
+                      ? "Tap a card to monitor — named A–Z, unknown devices at the end."
                       : "Tap a card to select it — nothing is monitored until you finish setup.")
                     .font(.caption)
                     .foregroundColor(.secondary)

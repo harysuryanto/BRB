@@ -29,8 +29,11 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     /// Name resolved over GATT (peripheral id, name). Advertisements often
     /// omit the name; the GATT database usually still answers.
     var onNameResolved: ((UUID, String) -> Void)?
-    /// Every advertisement seen: identifier, name (may be ""), RSSI.
-    var onAdvertisement: ((UUID, String, Int) -> Void)?
+    /// Every advertisement seen: identifier, name (may be ""), RSSI,
+    /// manufacturer company ID (nil when the packet carries no manufacturer
+    /// data — many buds advertise Fast Pair service data instead), and
+    /// whether Google Fast Pair service data (0xFE2C) is present.
+    var onAdvertisement: ((UUID, String, Int, UInt16?, Bool) -> Void)?
 
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
@@ -160,11 +163,21 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
         let name = p.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
         seenCount += 1
+        // Identity hints for unnamed packets: manufacturer company ID (first
+        // 2 bytes, little-endian) and Google Fast Pair service data (0xFE2C).
+        // Either can be absent — call sites treat both as optional.
+        var companyID: UInt16? = nil
+        if let mfr = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
+           mfr.count >= 2 {
+            companyID = UInt16(mfr[mfr.startIndex]) | (UInt16(mfr[mfr.startIndex + 1]) << 8)
+        }
+        let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []
+        let hasFastPair = serviceUUIDs.contains(CBUUID(string: "FE2C"))
         // Advertisement RSSI is free proximity data — report it before any
         // match/connect logic so even non-connectable beacons show up.
         // This fires continuously (duplicates mode) so the nearby list,
         // pruning, and ages stay live even while a monitor link is held.
-        onAdvertisement?(p.identifier, name, RSSI.intValue)
+        onAdvertisement?(p.identifier, name, RSSI.intValue, companyID, hasFastPair)
         guard matches(id: p.identifier, name: name) else {
             // Time-throttled heartbeat (duplicates mode is chatty): proves
             // the scan works and shows whether the bud advertises at all.

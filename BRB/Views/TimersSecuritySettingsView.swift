@@ -52,7 +52,7 @@ struct TimersSecuritySettingsView: View {
                     VStack(alignment: .leading, spacing: DS.spacingXS) {
                         Text("Post-Unlock Suppression")
                             .font(.subheadline.bold())
-                        Text("Keeps the cover down after authenticating at loginwindow without your earbuds.")
+                        Text("Keeps the cover down after authenticating at loginwindow without your device.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -77,7 +77,7 @@ struct TimersSecuritySettingsView: View {
                     VStack(alignment: .leading, spacing: DS.spacingXS) {
                         Text("Cover When Signal Is Lost")
                             .font(.subheadline.bold())
-                        Text("Also cover the screen when earbuds vanish (cased, dead, Bluetooth off). When off, the status still shows Gone but no new cover appears.")
+                        Text("Also cover the screen when device signal vanishes (cased, dead, Bluetooth off). When off, the status still shows Gone but no new cover appears.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

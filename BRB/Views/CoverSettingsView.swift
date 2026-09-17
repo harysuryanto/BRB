@@ -163,7 +163,7 @@ struct CoverSettingsView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 if manager.veilLockMode == .secure {
-                    Text("Secure: the cover lifts only when your earbuds return or via Mac login. Real protection.")
+                    Text("Secure: the cover lifts only when your device returns or via Mac login. Real protection.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {

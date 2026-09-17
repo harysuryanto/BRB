@@ -4,7 +4,7 @@
 //
 //  3-Step onboarding wizard for first launch:
 //  1. Bluetooth permission & consent
-//  2. Live earbud discovery & pinning
+//  2. Live device discovery & pinning
 //  3. Away boundary calibration (~2m walk-away)
 //
 
@@ -89,7 +89,7 @@ struct OnboardingView: View {
     private var previewReason: String {
         guard draftPinnedID != nil else { return "Pick a device in the previous step to preview." }
         guard let s = draftSample else { return "Waiting for signal…" }
-        if Date().timeIntervalSince(s.at) >= 12 { return "Signal stale — move the bud to refresh." }
+        if Date().timeIntervalSince(s.at) >= 12 { return "Signal stale — move the device to refresh." }
         let shown = doubleReading.map { Int(round($0)) } ?? s.rssi
         if previewCoverOn {
             return "Signal \(shown) dBm is below your \(Int(draftVeilOn)) dBm boundary."
@@ -182,7 +182,7 @@ struct OnboardingView: View {
             Text("Step 1: Bluetooth Access")
                 .font(.headline)
 
-            Text("BRB measures the radio presence (Bluetooth LE signal strength) of your wireless earbuds to detect when you walk away from your Mac.")
+            Text("BRB measures the radio presence (Bluetooth LE signal strength) of your device (earbuds, phone, etc.) to detect when you walk away from your Mac.")
                 .font(.body)
                 .foregroundColor(.secondary)
 
@@ -218,13 +218,13 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 2: Choose your Earbuds
+    // MARK: - Step 2: Choose your Device
     private var deviceStep: some View {
         VStack(alignment: .leading, spacing: DS.spacingLG) {
-            Text("Step 2: Choose your Earbuds")
+            Text("Step 2: Choose your Device")
                 .font(.headline)
 
-            Text("Select the wireless earbuds you wear around the desk. Move the buds or wear them so BRB can detect their signal.")
+            Text("Select the wireless earbuds, phone, or wearable you have around the desk. Move the device or wake it so BRB can detect its signal.")
                 .font(.body)
                 .foregroundColor(.secondary)
 
@@ -243,7 +243,7 @@ struct OnboardingView: View {
                 .cornerRadius(DS.radius)
             }
 
-                DevicePickerView(
+            DevicePickerView(
                 manager: manager,
                 selectedID: draftPinnedID,
                 onToggle: { draftPinnedID = ($0.key == draftPinnedID) ? nil : $0.key },

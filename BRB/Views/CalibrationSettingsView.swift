@@ -3,7 +3,7 @@
 //  BRB
 //
 //  Settings tab for calibrating signal thresholds, visualizing live range
-//  and signal strength of monitored earbuds, and configuring hysteresis gaps.
+//  and signal strength of monitored devices, and configuring hysteresis gaps.
 //
 
 import SwiftUI
@@ -36,7 +36,7 @@ struct CalibrationSettingsView: View {
                 Text("Proximity Thresholds & Calibration")
                     .font(.headline)
 
-                Text("Adjust when BRB covers your screen as you walk away, and when it dismisses as you return. Monitor your live earbud signal in real time below.")
+                Text("Adjust when BRB covers your screen as you walk away, and when it dismisses as you return. Monitor your live device signal in real time below.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -44,7 +44,7 @@ struct CalibrationSettingsView: View {
             // 1. Live Signal & Device Status Card
             liveSignalCard
 
-            // 2. Interactive Range & Threshold Gauge (only when actively receiving signal from pinned earbuds)
+            // 2. Interactive Range & Threshold Gauge (only when actively receiving signal from pinned devices)
             if hasActiveSignal {
                 signalGaugeCard
             }
@@ -61,7 +61,7 @@ struct CalibrationSettingsView: View {
     // MARK: - 1. Live Signal Card
     @ViewBuilder
     private var liveSignalCard: some View {
-        // Gate on pin state, not name resolvability: a GATT-held bud stops
+        // Gate on pin state, not name resolvability: a GATT-held device stops
         // advertising and its cached name ages out, but monitoring continues.
         if let pkey = manager.pinnedKey, let pinnedName = manager.pinnedDisplayName {
             HStack(alignment: .center, spacing: DS.spacingMD) {
@@ -86,7 +86,7 @@ struct CalibrationSettingsView: View {
                     }
 
                     if manager.presenceState == .gone {
-                        Text("Signal lost — earbuds may be in their case, out of Bluetooth range, or powered off.")
+                        Text("Signal lost — device may be in a case, out of Bluetooth range, or powered off.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     } else if let smoothed = manager.smoothedRSSI {
@@ -110,7 +110,7 @@ struct CalibrationSettingsView: View {
                             }
                         }
                     } else {
-                        Text("Waiting for signal packets… Move or wear your earbuds to wake them.")
+                        Text("Waiting for signal packets… Move or wake your device.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -139,9 +139,9 @@ struct CalibrationSettingsView: View {
                     .foregroundColor(.secondary)
 
                 VStack(alignment: .leading, spacing: DS.spacingXS) {
-                    Text("No Earbuds Pinned")
+                    Text("No Device Pinned")
                         .font(.subheadline.bold())
-                    Text("Select and pin your wireless earbuds in the Device tab to view live signal and calibrate thresholds.")
+                    Text("Select and pin your device in the Device tab to view live signal and calibrate thresholds.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

@@ -48,6 +48,9 @@ enum DS {
     // MARK: - Window
     static let windowWidth: CGFloat = 640
     static let windowHeight: CGFloat = 520
+    /// Industry-standard control center maximum dimensions (prevents awkward stretching on wide displays).
+    static let windowMaxWidth: CGFloat = 960
+    static let windowMaxHeight: CGFloat = 760
 
     // MARK: - Device cards (Nearby grid)
     static let deviceArtSize: CGFloat = 64

@@ -145,10 +145,10 @@ struct OnboardingView: View {
         .frame(
             minWidth: DS.windowWidth,
             idealWidth: DS.windowWidth,
-            maxWidth: .infinity,
+            maxWidth: DS.windowMaxWidth,
             minHeight: DS.windowHeight,
             idealHeight: DS.windowHeight,
-            maxHeight: .infinity
+            maxHeight: DS.windowMaxHeight
         )
     }
 

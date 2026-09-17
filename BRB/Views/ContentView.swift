@@ -65,6 +65,7 @@ struct ContentView: View {
                 mainSettingsView
             }
         }
+        .background(WindowCapabilityConfigurator())
         .onAppear { manager.startMonitoring() }
     }
 
@@ -101,10 +102,10 @@ struct ContentView: View {
         .frame(
             minWidth: DS.windowWidth,
             idealWidth: DS.windowWidth,
-            maxWidth: .infinity,
+            maxWidth: DS.windowMaxWidth,
             minHeight: DS.windowHeight,
             idealHeight: DS.windowHeight,
-            maxHeight: .infinity
+            maxHeight: DS.windowMaxHeight
         )
     }
 
@@ -275,6 +276,42 @@ struct ContentView: View {
         case .far: return "Away (Cover Active)"
         case .gone: return "Gone (Signal Lost)"
         case .idle: return "Idle (No Device)"
+        }
+    }
+}
+
+// MARK: - Window Capability Configurator
+
+/// Configures the hosting NSWindow to allow resizing while disabling fullscreen mode,
+/// enforcing industry-standard min/max bounds, and removing the green zoom button.
+private struct WindowCapabilityConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        WindowTrackingView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let window = nsView.window {
+            Self.applyConfiguration(to: window)
+        }
+    }
+
+    static func applyConfiguration(to window: NSWindow) {
+        window.collectionBehavior.remove(.fullScreenPrimary)
+        window.collectionBehavior.insert(.fullScreenNone)
+        window.minSize = NSSize(width: DS.windowWidth, height: DS.windowHeight)
+        window.maxSize = NSSize(width: DS.windowMaxWidth, height: DS.windowMaxHeight)
+        if let zoomButton = window.standardWindowButton(.zoomButton) {
+            zoomButton.isHidden = true
+            zoomButton.isEnabled = false
+        }
+    }
+
+    private final class WindowTrackingView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window {
+                WindowCapabilityConfigurator.applyConfiguration(to: window)
+            }
         }
     }
 }

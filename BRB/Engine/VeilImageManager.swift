@@ -18,6 +18,11 @@ class VeilImageManager {
     var isCustomImage: Bool = false
     var bookmarkError: String?
 
+    /// Original file bytes (needed for GIF frame decoding; NSImage alone
+    /// collapses animation to the first frame).
+    var customImageData: Data?
+    private var gifFrameCache: (data: Data, frames: [GIFFrame])?
+
     private let bookmarkKey = "BRB.veilImageBookmark"
 
     init() {
@@ -28,6 +33,8 @@ class VeilImageManager {
     func loadImageFromBookmark() {
         guard let bookmarkData = UserDefaults.standard.data(forKey: bookmarkKey) else {
             customImage = nil
+            customImageData = nil
+            gifFrameCache = nil
             isCustomImage = false
             return
         }
@@ -52,8 +59,10 @@ class VeilImageManager {
             }
             defer { url.stopAccessingSecurityScopedResource() }
 
-            if let image = NSImage(contentsOf: url) {
+            if let data = try? Data(contentsOf: url), let image = NSImage(data: data) {
+                self.customImageData = data
                 self.customImage = image
+                self.gifFrameCache = nil
                 self.isCustomImage = true
                 self.bookmarkError = nil
             } else {
@@ -62,6 +71,8 @@ class VeilImageManager {
         } catch {
             self.bookmarkError = "Failed to resolve saved image: \(error.localizedDescription)"
             self.customImage = nil
+            self.customImageData = nil
+            self.gifFrameCache = nil
             self.isCustomImage = false
         }
     }
@@ -106,8 +117,23 @@ class VeilImageManager {
     func resetToDefault() {
         UserDefaults.standard.removeObject(forKey: bookmarkKey)
         customImage = nil
+        customImageData = nil
+        gifFrameCache = nil
         isCustomImage = false
         bookmarkError = nil
+    }
+
+    /// Animated frames for the custom image, or nil when static / no custom
+    /// image. Parsed once per file, then cached (decoding on every frame
+    /// tick would be wasteful).
+    func animatedFrames() -> [GIFFrame]? {
+        guard let data = customImageData else { return nil }
+        if let cache = gifFrameCache, cache.data == data {
+            return cache.frames.isEmpty ? nil : cache.frames
+        }
+        let frames = GIFFrame.decode(from: data)
+        gifFrameCache = (data, frames)
+        return frames.isEmpty ? nil : frames
     }
 
     /// Returns the effective image: user chosen image or the crisp default asset.

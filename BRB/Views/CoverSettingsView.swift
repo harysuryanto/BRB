@@ -77,11 +77,12 @@ struct CoverSettingsView: View {
                 RoundedRectangle(cornerRadius: DS.radius)
                     .fill(Color.black)
 
-                Image(nsImage: imageManager.effectiveImage(for: previewRenderSize))
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .clipped()
-                    .cornerRadius(DS.radius)
+                CoverImageView(
+                    frames: imageManager.animatedFrames(),
+                    staticImage: imageManager.effectiveImage(for: previewRenderSize)
+                )
+                .clipped()
+                .cornerRadius(DS.radius)
 
                 HStack {
                     if imageManager.isCustomImage {

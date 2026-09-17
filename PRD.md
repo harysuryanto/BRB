@@ -81,7 +81,7 @@ Unlocked Macs in shared spaces expose sensitive screens the moment the owner ste
 - Honest limit (document in Settings footnote): screen *sharing* broadcasts the veil image (intended); anything visible *before* veiling already left — grace-delay tuning is the mitigation.
 
 ### 6.4 Image Settings (Settings → Cover tab)
-- **Choose image:** `NSOpenPanel` (files only, single select; types PNG/JPEG/TIFF/HEIC/BMP/GIF-first-frame) + **Reset to default** button + thumbnail preview of current selection.
+- **Choose image:** `NSOpenPanel` (files only, single select; types PNG/JPEG/TIFF/HEIC/BMP/GIF, **animated GIFs play** via `GIFFrame` decode + `TimelineView` driver in `CoverAnimation.swift`/`AnimatedCoverView.swift`) + **Reset to default** button + thumbnail preview of current selection (preview plays GIFs too).
 - **Persistence (sandbox-safe):** store a **security-scoped bookmark** (`URL.bookmarkData(options: .withSecurityScope)`) under `BRB.veilImageBookmark`, NOT a raw path. On launch/display: resolve bookmark → `startAccessingSecurityScopedResource()` → load → `stopAccessing…`. Stale/unresolvable bookmark → fall back to default + show "Image unavailable — please re-choose" notice row in Settings.
 - **Rendering:** aspect-fill (preserve ratio, cover, black surround), mirrored identically on all displays (prototype scope — no per-display images), downscaled to each screen's backing size and cached; reload on display-configuration change.
 - **Default image (bundled asset):** dark gradient + "BRB — stepped away" wordmark. Used when nothing chosen or file missing. Never a broken/empty veil.

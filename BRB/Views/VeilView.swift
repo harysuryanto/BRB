@@ -27,12 +27,13 @@ struct VeilView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                // Full-bleed cover image (Aspect-fill)
-                Image(nsImage: imageManager.effectiveImage(for: safeSize))
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: safeWidth, height: safeHeight)
-                    .clipped()
+                // Full-bleed cover image (Aspect-fill, animated when GIF)
+                CoverImageView(
+                    frames: imageManager.animatedFrames(),
+                    staticImage: imageManager.effectiveImage(for: safeSize)
+                )
+                .frame(width: safeWidth, height: safeHeight)
+                .clipped()
 
                 // Bottom-anchored action button card
                 VStack {

@@ -55,6 +55,9 @@ enum DS {
     // MARK: - Device cards (Nearby grid)
     static let deviceArtSize: CGFloat = 64
     static let deviceGridSpacing: CGFloat = 12
+    /// Responsive card width bounds so the grid shows more items per row as the window widens.
+    static let deviceCardMinWidth: CGFloat = 160
+    static let deviceCardMaxWidth: CGFloat = 240
 
     // MARK: - Veil (fullscreen exception: dark aesthetic stays,
     // only internal button metrics are normalised)

@@ -327,9 +327,7 @@ struct DevicePickerView: View {
     var mode: PickerMode = .live
 
     private let columns = [
-        GridItem(.flexible(), spacing: DS.deviceGridSpacing),
-        GridItem(.flexible(), spacing: DS.deviceGridSpacing),
-        GridItem(.flexible(), spacing: DS.deviceGridSpacing),
+        GridItem(.adaptive(minimum: DS.deviceCardMinWidth, maximum: DS.deviceCardMaxWidth), spacing: DS.deviceGridSpacing)
     ]
 
     private var effectiveSelectedID: String? { selectedID ?? manager.pinnedLEID }

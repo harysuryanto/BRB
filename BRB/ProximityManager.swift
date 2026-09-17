@@ -9,6 +9,8 @@
 
 import CoreBluetooth
 import Foundation
+import IOBluetooth
+import os
 
 /// One LE advertisement sighting, keyed by peripheral identifier.
 struct AdvertSample: Codable {
@@ -221,9 +223,18 @@ class ProximityManager {
         deviceGroups.first { $0.key == key }
     }
 
+    /// Identifiers with a name-resolution connection in flight (for UI).
+    var resolvingIDs: Set<String> {
+        guard let leReader else { return [] }
+        return Set(leReader.resolvingIdentifiers.map(\.uuidString))
+    }
+
     /// Display title for a stable key. Never blank while the key is known.
+    /// Tier: live group → Classic bond record → name cache → placeholder.
+    /// The bond tier is what survives rotation + namelessness for paired buds.
     func displayName(forKey key: String) -> String {
         if let g = group(forKey: key) { return g.name }
+        if let b = bond(forKey: key) { return b.name }
         if let cached = nameCache[key]?.name, !isUnnamed(cached) { return cached }
         return key.hasPrefix("uuid:") ? "Unknown" : key
     }
@@ -517,6 +528,7 @@ class ProximityManager {
     func startMonitoring() {
         guard !Self.isPreview else { return }
         monitoringStartedAt = Date()
+        refreshClassicBonds()
 
         guard leReader == nil else { return }
         let reader = LERSSIReader()
@@ -604,6 +616,11 @@ class ProximityManager {
                     // GATT names are highest-trust: always overwrite the cache.
                     self.cacheIdentity(id: key, name: name, companyID: s.companyID,
                                        hasFastPair: s.hasFastPairService)
+                    // A resolved name can complete the pin across rotation —
+                    // adopt without waiting for the next advert.
+                    if self.isPinnedSight(uuid: key, name: name, companyID: s.companyID) {
+                        if key != self.pinnedUUIDHint { self.adoptLocator(uuid: key) }
+                    }
                 }
             }
         }
@@ -635,12 +652,57 @@ class ProximityManager {
         }
     }
 
+    // MARK: - Classic Bond Records (stable identity source)
+    /// One Classic paired device: stable MAC + user-visible name, straight
+    /// from the OS bond database (the same record system Settings shows).
+    /// Refreshed at monitoring start and on pin; the bond DB is the
+    /// persistence, so nothing here is written to disk. Enumeration runs
+    /// off-main (pairedDevices() can block on TCC) and logs to the unified
+    /// log — query with:
+    /// `log show --predicate 'subsystem == "com.harysuryanto.brb"' --last 1d`.
+    struct ClassicBond {
+        var name: String
+        var address: String
+        var connected: Bool
+    }
+
+    /// Current Classic bond snapshot. Mutated on main; @Observable fans out.
+    var classicBonds: [ClassicBond] = []
+
+    /// Bond whose name matches a stable key (case-insensitive). Named keys
+    /// only — uuid-singleton keys can never match a bond record.
+    func bond(forKey key: String) -> ClassicBond? {
+        guard !key.hasPrefix("uuid:") else { return nil }
+        return classicBonds.first { Self.stableKey(forName: $0.name) == key }
+    }
+
+    private func refreshClassicBonds() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let log = Logger(subsystem: "com.harysuryanto.brb", category: "bond")
+            guard let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else {
+                log.warning("bond-spike: pairedDevices() returned nil (possible TCC denial)")
+                return
+            }
+            let bonds = paired.map {
+                ClassicBond(name: $0.name ?? "(no name)",
+                            address: $0.addressString ?? "?",
+                            connected: $0.isConnected())
+            }
+            log.info("bond-spike: paired count: \(bonds.count, privacy: .public)")
+            for b in bonds {
+                log.info("bond-spike: \(b.name, privacy: .public) @ \(b.address, privacy: .public) [\(b.connected ? "connected" : "not-connected", privacy: .public)]")
+            }
+            DispatchQueue.main.async { self?.classicBonds = bonds }
+        }
+    }
+
     // MARK: - Engine Tick (0.5s interval)
     private func engineTick() {
         ticks += 1
 
-        // 1. Request GATT read if link is connected
+        // 1. Request GATT read if link is connected; sweep stale resolutions
         leReader?.requestRead()
+        leReader?.sweepResolutions()
 
         // 2. Scan hygiene restart every ~60s (120 ticks * 0.5s)
         if ticks % 120 == 0 {
@@ -814,6 +876,8 @@ class ProximityManager {
     // MARK: - Device Management
     func pinLEDevice(key: String, uuid: String) {
         guard !Self.isPreview else { return }
+        refreshClassicBonds()
+        if let hint = UUID(uuidString: uuid) { leReader?.clearResolutionAttempt(hint) }
         pinnedKey = key
         pinnedUUIDHint = uuid
         lastRelink = nil

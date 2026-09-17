@@ -116,10 +116,11 @@ private enum DeviceCategory {
 /// rotates across case cycles, so it identifies the session, not the device
 /// (identity lives in the title/key). Kept because it is the strongest
 /// glanceable differentiator between otherwise-identical Unknown cards.
-private func deviceSubtitle(sample: AdvertSample, chip: String?, multi: Bool, locator: String) -> String {
+private func deviceSubtitle(sample: AdvertSample, chip: String?, multi: Bool, locator: String, resolving: Bool = false) -> String {
     var parts = [String(locator.prefix(8)), ageString(since: sample.at)]
     if let chip { parts.append(chip) }
     if multi { parts.append("2× seen") }
+    if resolving { parts.append("Identifying…") }
     return parts.joined(separator: " • ")
 }
 
@@ -257,6 +258,8 @@ struct DeviceCardView: View {
     var group: ProximityManager.DeviceGroup
     var isSelected: Bool
     var mode: PickerMode = .live
+    /// Whether a GATT name resolution is currently in flight for this group.
+    var resolving: Bool = false
     var action: () -> Void
 
     private var pillText: String { mode == .live ? "Monitored" : "Selected" }
@@ -293,7 +296,7 @@ struct DeviceCardView: View {
                         .foregroundColor(stale ? .secondary : .primary)
                 }
 
-                Text(deviceSubtitle(sample: sample, chip: group.chip, multi: group.uuids.count > 1, locator: group.locator))
+                Text(deviceSubtitle(sample: sample, chip: group.chip, multi: group.uuids.count > 1, locator: group.locator, resolving: resolving))
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -360,13 +363,15 @@ struct DevicePickerView: View {
 
     var body: some View {
         let groups = manager.deviceGroups
+        let paired = groups.filter { manager.bond(forKey: $0.key) != nil }
+        let nearby = groups.filter { manager.bond(forKey: $0.key) == nil }
         VStack(alignment: .leading, spacing: DS.spacingSM) {
-            HStack {
-                Text("Nearby devices")
-                    .font(.subheadline.bold())
-                DSPill(text: "\(groups.count)", tint: .secondary)
-                Spacer()
+            if !paired.isEmpty {
+                sectionHeader(title: "Your devices", count: paired.count)
+                deviceGrid(for: paired)
             }
+
+            sectionHeader(title: "Nearby devices", count: nearby.count)
 
             if groups.isEmpty {
                 VStack(spacing: DS.spacingSM) {
@@ -384,20 +389,8 @@ struct DevicePickerView: View {
                 .cornerRadius(DS.radius)
                 .transition(.opacity)
             } else {
-                LazyVGrid(columns: columns, spacing: DS.deviceGridSpacing) {
-                    ForEach(groups, id: \.key) { group in
-                        DeviceCardView(
-                            group: group,
-                            isSelected: effectiveSelectedID == group.key,
-                            mode: mode
-                        ) {
-                            toggle(group)
-                        }
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.85).combined(with: .opacity),
-                            removal: .opacity
-                        ))
-                    }
+                if !nearby.isEmpty {
+                    deviceGrid(for: nearby)
                 }
                 Text(mode == .live
                       ? "Tap a card to monitor — named A–Z, unknown devices at the end."
@@ -409,5 +402,33 @@ struct DevicePickerView: View {
         // Fires only when the group set/order changes (insert/remove) — live
         // dBm/age text updates don't retrigger it.
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: groups.map(\.key))
+    }
+
+    private func sectionHeader(title: String, count: Int) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.bold())
+            DSPill(text: "\(count)", tint: .secondary)
+            Spacer()
+        }
+    }
+
+    private func deviceGrid(for list: [ProximityManager.DeviceGroup]) -> some View {
+        LazyVGrid(columns: columns, spacing: DS.deviceGridSpacing) {
+            ForEach(list, id: \.key) { group in
+                        DeviceCardView(
+                            group: group,
+                            isSelected: effectiveSelectedID == group.key,
+                            mode: mode,
+                            resolving: manager.resolvingIDs.contains(group.locator)
+                        ) {
+                    toggle(group)
+                }
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.85).combined(with: .opacity),
+                    removal: .opacity
+                ))
+            }
+        }
     }
 }

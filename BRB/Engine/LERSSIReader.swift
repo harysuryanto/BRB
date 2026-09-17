@@ -21,6 +21,7 @@
 
 import CoreBluetooth
 import Foundation
+import os
 
 final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var onState: ((CBManagerState) -> Void)?
@@ -41,6 +42,72 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     /// Current locator for the pin (ephemeral): id match wins while visible,
     /// the pinned target name follows across identifier rotation.
     var pinnedID: UUID?
+
+    // MARK: - Name Resolution Queue (unnamed singletons)
+    /// One-shot GATT name reads for lingering unnamed sightings. Fully
+    /// separate from the held monitor link: resolution peripherals never
+    /// touch `peripheral`/`reconnectTries`, and their RSSI is gated out of
+    /// presence (see didReadRSSI). Results flow through onNameResolved, so
+    /// groups re-key and badges appear with no extra plumbing.
+    var resolutionEnabled: Bool = true
+    private var resolutionPeripherals: [UUID: CBPeripheral] = [:]
+    private var resolutionStartedAt: [UUID: Date] = [:]
+    private var resolutionAttemptedAt: [UUID: Date] = [:]
+    private var lastResolutionAttempt = Date.distantPast
+    private static let resolutionTimeout: TimeInterval = 10.0
+    private static let resolutionRetryAfter: TimeInterval = 86400 // 24h per UUID
+    private static let resolutionGap: TimeInterval = 5.0
+    private let resolveLog = Logger(subsystem: "com.harysuryanto.brb", category: "resolve")
+
+    /// Identifiers with a resolution connection currently in flight (for UI).
+    var resolvingIdentifiers: Set<UUID> { Set(resolutionPeripherals.keys) }
+
+    /// Attempt a one-shot name resolution for a fresh unnamed sighting.
+    /// Throttled: one in flight, minimum gap, one attempt per UUID per day.
+    func resolveName(_ p: CBPeripheral) {
+        let id = p.identifier
+        guard resolutionEnabled,
+              resolutionPeripherals.isEmpty,
+              Date().timeIntervalSince(lastResolutionAttempt) >= Self.resolutionGap,
+              Date().timeIntervalSince(resolutionAttemptedAt[id] ?? .distantPast) >= Self.resolutionRetryAfter,
+              let central, central.state == .poweredOn else { return }
+        lastResolutionAttempt = Date()
+        resolutionAttemptedAt[id] = Date()
+        resolutionStartedAt[id] = Date()
+        resolutionPeripherals[id] = p
+        resolveLog.info("resolve: connecting \(id.uuidString.prefix(8), privacy: .public)")
+        central.connect(p, options: nil)
+    }
+
+    /// Forget a recorded attempt so the next sighting may try again.
+    /// Used on pin: picking an unnamed card signals intent, so its name
+    /// resolution must not stay suppressed behind the 24h backoff.
+    func clearResolutionAttempt(_ id: UUID) {
+        resolutionAttemptedAt.removeValue(forKey: id)
+    }
+
+    /// Disconnect timed-out resolutions. Called from the engine tick.
+    func sweepResolutions() {
+        guard let central else { return }
+        let now = Date()
+        for (id, started) in resolutionStartedAt
+        where now.timeIntervalSince(started) > Self.resolutionTimeout {
+            if let p = resolutionPeripherals[id] {
+                resolveLog.info("resolve: timeout \(id.uuidString.prefix(8), privacy: .public)")
+                central.cancelPeripheralConnection(p)
+            }
+            resolutionPeripherals.removeValue(forKey: id)
+            resolutionStartedAt.removeValue(forKey: id)
+        }
+    }
+
+    private func finishResolution(_ p: CBPeripheral, reason: String) {
+        guard resolutionPeripherals[p.identifier] != nil else { return }
+        resolveLog.info("resolve: \(reason, privacy: .public) \(p.identifier.uuidString.prefix(8), privacy: .public)")
+        resolutionPeripherals.removeValue(forKey: p.identifier)
+        resolutionStartedAt.removeValue(forKey: p.identifier)
+        central?.cancelPeripheralConnection(p)
+    }
     private var lastRequest: Date = .distantPast
     private var seenCount: Int = 0
     private var lastHeartbeat: Date = .distantPast
@@ -69,6 +136,9 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
 
     func stop() {
         if let p = peripheral { central?.cancelPeripheralConnection(p) }
+        for (_, p) in resolutionPeripherals { central?.cancelPeripheralConnection(p) }
+        resolutionPeripherals.removeAll()
+        resolutionStartedAt.removeAll()
         peripheral = nil
         reconnectTries = 0
         central?.stopScan()
@@ -182,6 +252,11 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         // This fires continuously (duplicates mode) so the nearby list,
         // pruning, and ages stay live even while a monitor link is held.
         onAdvertisement?(p.identifier, name, RSSI.intValue, companyID, hasFastPair)
+        // Unnamed strangers get one shot at introducing themselves — the
+        // resolved name flows through onNameResolved and re-keys the group.
+        if isUnnamed(name) {
+            resolveName(p)
+        }
         guard matches(id: p.identifier, name: name) else {
             // Time-throttled heartbeat (duplicates mode is chatty): proves
             // the scan works and shows whether the bud advertises at all.
@@ -211,6 +286,8 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
+        resolutionPeripherals.removeValue(forKey: p.identifier)
+        resolutionStartedAt.removeValue(forKey: p.identifier)
         guard peripheral === p else { return }
         // Our own 1Hz readRSSI traffic normally keeps the link up. On a
         // drop, retry the HELD object directly first (no scan round-trip);
@@ -228,6 +305,8 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) {
+        resolutionPeripherals.removeValue(forKey: p.identifier)
+        resolutionStartedAt.removeValue(forKey: p.identifier)
         guard peripheral === p else { return }
         // Same budget as drops: retry the held object, then scan.
         if reconnectTries < maxReconnectTries {
@@ -246,6 +325,8 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
 
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         guard error == nil else { return }
+        // Monitor link only: resolution one-shots must never feed presence.
+        guard let held = self.peripheral, peripheral === held else { return }
         onRSSI?(RSSI.intValue)
     }
 
@@ -272,5 +353,7 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
             .trimmingCharacters(in: .controlCharacters).trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         onNameResolved?(peripheral.identifier, name)
+        // Resolution links are one-shot: name in hand, let go.
+        finishResolution(peripheral, reason: "resolved")
     }
 }

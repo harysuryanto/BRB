@@ -111,3 +111,12 @@ struct DSPill: View {
             .clipShape(Capsule())
     }
 }
+
+/// Countdown text for live timers: bare seconds under a minute ("45s"),
+/// otherwise minutes with plain seconds ("10m 5s", no zero-padding).
+/// Floors fractional seconds like a clock; clamps negatives to zero.
+func formatCountdown(_ seconds: TimeInterval) -> String {
+    let total = max(0, Int(seconds))
+    guard total >= 60 else { return "\(total)s" }
+    return "\(total / 60)m \(total % 60)s"
+}

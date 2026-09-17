@@ -136,7 +136,7 @@ struct ContentView: View {
                         Text(presenceLabel)
                             .font(.headline)
                         if let remaining = manager.suppressionRemaining {
-                            DSPill(text: "Suppression Active (\(Int(remaining))s)", tint: .purple)
+                            DSPill(text: "Suppression Active (\(formatCountdown(remaining)))", tint: .purple)
                         }
 #if DEBUG
                         if let devPause = manager.developerPauseRemaining {

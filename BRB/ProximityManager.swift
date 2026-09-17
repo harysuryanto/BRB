@@ -70,16 +70,6 @@ func displayTitle(for id: String) -> String {
     return suffix.isEmpty ? "Unknown" : "Unknown • \(suffix)"
 }
 
-/// Secondary identity chip for an unnamed sample: vendor, else Fast Pair
-/// hint (many buds advertise 0xFE2C instead of manufacturer data), else nil.
-/// Named samples get no chip — the name suffices.
-func chipText(for sample: AdvertSample) -> String? {
-    guard isUnnamed(sample.name) else { return nil }
-    if let vendor = vendorName(for: sample.companyID) { return vendor }
-    if sample.hasFastPairService { return "Fast Pair" }
-    return nil
-}
-
 /// How dismissible the veil cover is.
 /// - secure: lifts only on TWS return or macOS login (real protection).
 /// - casual: also offers a Hide button that lifts it once with no auth
@@ -128,65 +118,170 @@ class ProximityManager {
     private var nameCache: [String: CachedDevice] = [:]
     private var lastNameCacheSave = Date.distantPast
 
-    // MARK: - Pinned Device
-    var pinnedLEID: String? {
+    // MARK: - Pinned Device (stable-keyed; UUIDs rotate)
+    /// Stable pin key: normalized device name. LE peripheral identifiers
+    /// rotate across case cycles on unpaired buds, so the pin follows the
+    /// name; the current identifier is kept only as a locator hint.
+    var pinnedKey: String? {
         didSet {
-            if let id = pinnedLEID {
-                UserDefaults.standard.set(id, forKey: "BRB.pinnedLEID")
+            if let pinnedKey {
+                UserDefaults.standard.set(pinnedKey, forKey: "BRB.pinnedKey")
             } else {
-                UserDefaults.standard.removeObject(forKey: "BRB.pinnedLEID")
+                UserDefaults.standard.removeObject(forKey: "BRB.pinnedKey")
             }
         }
     }
+    /// Latest locator identifier for the pin (ephemeral; refreshed on every
+    /// same-name sighting). Preferred while visible, never trusted alone.
+    var pinnedUUIDHint: String? {
+        didSet {
+            if let pinnedUUIDHint {
+                UserDefaults.standard.set(pinnedUUIDHint, forKey: "BRB.pinnedUUIDHint")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "BRB.pinnedUUIDHint")
+            }
+        }
+    }
+    /// Last silent re-link (session-only): surfaced briefly in the Device tab
+    /// so rotations are visible, never silent-mysterious.
+    var lastRelink: (name: String, at: Date)? = nil
+    private var lastReaderAim = Date.distantPast
 
-    var pinnedName: String? {
-        guard let pinnedLEID else { return nil }
-        return leAdverts[pinnedLEID]?.name
+    private var pinnedUUID: UUID? {
+        guard let pinnedUUIDHint else { return nil }
+        return UUID(uuidString: pinnedUUIDHint)
     }
 
-    /// Never-blank monitored identity, consistent with scanner cards: the
-    /// resolved name when known, otherwise the stable "Unknown • XXXX"
-    /// placeholder. Nil only when nothing is pinned — views gate monitored UI
-    /// on pin state, never on name resolvability, so the monitored card can
-    /// no longer flip to "no device" mid-pin when adverts age out.
-    var pinnedDisplayName: String? {
-        guard let pinnedLEID else { return nil }
-        return displayName(for: pinnedLEID)
+    /// Normalized stable identity key for a name (nil for placeholders).
+    /// The key — not the identifier — is what survives case cycles.
+    static func stableKey(forName name: String) -> String? {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !n.isEmpty, !n.contains("(unnamed)") else { return nil }
+        return n
     }
 
-    /// Live-or-cached real name for an identifier (nil when neither knows one).
-    /// Single resolution point for every surface: live data always wins, the
-    /// cache covers advert gaps and cold starts, and a miss degrades to the
-    /// placeholder at the call site.
-    private func resolvedName(for id: String) -> String? {
-        if let live = leAdverts[id]?.name, !isUnnamed(live) { return live }
-        if let cached = nameCache[id]?.name, !isUnnamed(cached) { return cached }
-        return nil
+    /// One physical device: all same-name sightings collapsed, so a bud is a
+    /// single row even as its identifier rotates underneath.
+    struct DeviceGroup {
+        var key: String // stableKey, or "uuid:<uuid>" for unnamed singletons
+        var name: String // title-ready, never blank
+        var art: String // real name or "" — drives category + tint gate
+        var uuids: [String] // locator identifiers, latest-first
+        var sample: AdvertSample // freshest sighting (RSSI/age)
+        var chip: String? // vendor / Fast Pair (unnamed only)
+        var isNamed: Bool
+        var locator: String { uuids.first ?? "" }
     }
 
-    /// Display name for any identifier on any surface.
-    func displayName(for id: String) -> String {
-        if let resolved = resolvedName(for: id) { return resolved }
-        return displayTitle(for: id)
+    /// Scanner/monitor model, grouped by stable key. Named A–Z, unnamed last.
+    var deviceGroups: [DeviceGroup] {
+        var buckets: [String: [String]] = [:]
+        for (uuid, s) in leAdverts {
+            let k = Self.stableKey(forName: s.name) ?? "uuid:" + uuid
+            buckets[k, default: []].append(uuid)
+        }
+        var groups: [DeviceGroup] = []
+        for (key, uuids) in buckets {
+            let ordered = uuids.sorted {
+                (leAdverts[$0]?.at ?? .distantPast) > (leAdverts[$1]?.at ?? .distantPast)
+            }
+            guard let first = ordered.first, let fresh = leAdverts[first] else { continue }
+            let named = !key.hasPrefix("uuid:")
+            var real: String? = nil
+            for u in ordered {
+                if let n = leAdverts[u]?.name, !isUnnamed(n) { real = n; break }
+            }
+            let cached: String? = {
+                guard let c = self.nameCache[key]?.name, !isUnnamed(c) else { return nil }
+                return c
+            }()
+            let title = real ?? cached ?? (named ? key : displayTitle(for: first))
+            let art = real ?? cached ?? ""
+            var chip: String? = nil
+            if !named {
+                let mergedCompany: UInt16? = ordered.lazy.compactMap({ self.leAdverts[$0]?.companyID }).first
+                    ?? self.nameCache[key]?.companyID
+                let fp = ordered.contains(where: { self.leAdverts[$0]?.hasFastPairService == true })
+                    || (self.nameCache[key]?.hasFastPair ?? false)
+                chip = vendorName(for: mergedCompany) ?? (fp ? "Fast Pair" : nil)
+            }
+            groups.append(DeviceGroup(key: key, name: title, art: art, uuids: ordered,
+                                      sample: fresh, chip: chip, isNamed: named))
+        }
+        return groups.sorted {
+            if $0.isNamed != $1.isNamed { return $0.isNamed }
+            if $0.isNamed {
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+            return ($0.uuids.first ?? "") < ($1.uuids.first ?? "")
+        }
     }
 
-    /// Identity chip for any identifier: live vendor hints, else cached ones.
-    func identityChip(for id: String) -> String? {
-        if let sample = leAdverts[id], let chip = chipText(for: sample) { return chip }
-        guard let cached = nameCache[id] else { return nil }
-        let pseudo = AdvertSample(name: "(unnamed)", rssi: 0, at: .distantPast,
-                                  companyID: cached.companyID, hasFastPairService: cached.hasFastPair)
-        return chipText(for: pseudo)
+    func group(forKey key: String) -> DeviceGroup? {
+        deviceGroups.first { $0.key == key }
     }
 
-    /// Raw name for artwork categorization. Same precedence as displayName
-    /// (live-if-real, else cached-if-real, else "") so art changes only on
-    /// the same events as the title — a nameless packet must not flip a
-    /// known device back to generic art.
-    func artName(for id: String) -> String {
-        if let live = leAdverts[id]?.name, !isUnnamed(live) { return live }
-        if let cached = nameCache[id]?.name, !isUnnamed(cached) { return cached }
+    /// Display title for a stable key. Never blank while the key is known.
+    func displayName(forKey key: String) -> String {
+        if let g = group(forKey: key) { return g.name }
+        if let cached = nameCache[key]?.name, !isUnnamed(cached) { return cached }
+        return key.hasPrefix("uuid:") ? "Unknown" : key
+    }
+
+    /// Raw name for artwork categorization. Same precedence as the title.
+    func artName(forKey key: String) -> String {
+        if let g = group(forKey: key) { return g.art }
+        if let cached = nameCache[key]?.name, !isUnnamed(cached) { return cached }
         return ""
+    }
+
+    /// Display title for the pin, or nil when unpinned. Never blank while
+    /// pinned (live → cached → placeholder chain above).
+    var pinnedDisplayName: String? {
+        guard let pinnedKey else { return nil }
+        return displayName(forKey: pinnedKey)
+    }
+
+    /// Whether a sighting belongs to the pin. The UUID hint wins while
+    /// visible; otherwise same stable name with vendor compatibility — the
+    /// name arm is what survives identifier rotation.
+    func isPinnedSight(uuid: String, name: String, companyID: UInt16?) -> Bool {
+        guard let pinnedKey else { return false }
+        if uuid == pinnedUUIDHint { return true }
+        guard Self.stableKey(forName: name) == pinnedKey else { return false }
+        if let a = companyID, let b = pinnedVendorID, a != b { return false }
+        return true
+    }
+
+    /// Current pin vendor hint (live group, else cache), for adopt sanity.
+    private var pinnedVendorID: UInt16? {
+        guard let pinnedKey, let g = group(forKey: pinnedKey) else { return nil }
+        for u in g.uuids {
+            if let c = leAdverts[u]?.companyID { return c }
+        }
+        return nameCache[pinnedKey]?.companyID
+    }
+
+    /// Silent re-link: follow the pin across identifier rotation. The hint
+    /// and note update on every adopt; the GATT re-aim is throttled so two
+    /// same-named devices alternating packets can't hot-loop the reader
+    /// (the advert path keeps presence live regardless).
+    func adoptLocator(uuid: String) {
+        guard let pinnedKey, uuid != pinnedUUIDHint else { return }
+        pinnedUUIDHint = uuid
+        lastRelink = (name: displayName(forKey: pinnedKey), at: Date())
+        if Date().timeIntervalSince(lastReaderAim) > 30 {
+            lastReaderAim = Date()
+            leReader?.stop()
+            leReader?.start(targetName: Self.readerTargetName(forKey: pinnedKey),
+                            pinnedID: UUID(uuidString: uuid))
+        }
+    }
+
+    /// Reader name-match target for a key. Unnamed singleton keys ("uuid:…")
+    /// carry no name — id-only matching within the cycle.
+    static func readerTargetName(forKey key: String) -> String {
+        key.hasPrefix("uuid:") ? "" : key
     }
 
     // MARK: - Configurable Thresholds & Settings (Persisted)
@@ -289,11 +384,6 @@ class ProximityManager {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
 
-    private var pinnedUUID: UUID? {
-        guard let pinnedLEID else { return nil }
-        return UUID(uuidString: pinnedLEID)
-    }
-
     init() {
         let defaults = UserDefaults.standard
         self.veilOnThreshold = defaults.object(forKey: "BRB.veilOnThreshold") as? Double ?? -80.0
@@ -303,8 +393,36 @@ class ProximityManager {
         self.failSecureEnabled = defaults.object(forKey: "BRB.failSecureEnabled") as? Bool ?? true
         self.veilOnGoneEnabled = defaults.object(forKey: "BRB.veilOnGone") as? Bool ?? true
         self.veilLockMode = VeilLockMode(rawValue: defaults.string(forKey: "BRB.veilLockMode") ?? "") ?? .secure
-        self.pinnedLEID = defaults.string(forKey: "BRB.pinnedLEID")
-        self.nameCache = Self.loadNameCache()
+        let cache = Self.loadNameCache()
+        // One-time: re-key legacy UUID-keyed entries by embedded real names.
+        var rekeyed: [String: CachedDevice] = [:]
+        for (k, v) in cache {
+            let nk = Self.stableKey(forName: v.name) ?? k
+            if let e = rekeyed[nk] {
+                let newest = v.lastSeen >= e.lastSeen ? v : e
+                let older = v.lastSeen >= e.lastSeen ? e : v
+                rekeyed[nk] = CachedDevice(name: newest.name,
+                                           companyID: newest.companyID ?? older.companyID,
+                                           hasFastPair: newest.hasFastPair || older.hasFastPair,
+                                           lastSeen: newest.lastSeen)
+            } else {
+                rekeyed[nk] = v
+            }
+        }
+        self.nameCache = rekeyed
+        // One-time: migrate a legacy UUID pin via the (pre-rekey) cache name.
+        // didSet doesn't fire in init, so the migrated values persist explicitly.
+        self.pinnedKey = defaults.string(forKey: "BRB.pinnedKey")
+        self.pinnedUUIDHint = defaults.string(forKey: "BRB.pinnedUUIDHint")
+        if self.pinnedKey == nil, let legacy = defaults.string(forKey: "BRB.pinnedLEID") {
+            if let oldName = cache[legacy]?.name, let k = Self.stableKey(forName: oldName) {
+                self.pinnedKey = k
+                self.pinnedUUIDHint = legacy
+                defaults.set(k, forKey: "BRB.pinnedKey")
+                defaults.set(legacy, forKey: "BRB.pinnedUUIDHint")
+            }
+            defaults.removeObject(forKey: "BRB.pinnedLEID")
+        }
 
         setupLockAndVeilCallbacks()
     }
@@ -323,17 +441,19 @@ class ProximityManager {
         UserDefaults.standard.set(data, forKey: Self.nameCacheKey)
     }
 
-    /// Upserts a real (never placeholder) identity sighting. Disk writes
-    /// happen on identity change, otherwise throttled — duplicates-mode
+    /// Upserts a real (never placeholder) identity sighting, keyed by stable
+    /// name (falling back to the identifier for unnamed singletons). Disk
+    /// writes happen on identity change, otherwise throttled — duplicates-mode
     /// traffic (many packets/sec) must never hammer disk, while lastSeen
     /// still advances often enough to keep daily-seen entries alive.
     /// Evicts oldest-seen beyond the cap.
     private func cacheIdentity(id: String, name: String, companyID: UInt16?, hasFastPair: Bool) {
         guard !isUnnamed(name) else { return }
-        let previous = nameCache[id]
+        let ck = Self.stableKey(forName: name) ?? id
+        let previous = nameCache[ck]
         let changed = previous?.name != name || previous?.companyID != companyID
             || previous?.hasFastPair != hasFastPair
-        nameCache[id] = CachedDevice(name: name, companyID: companyID,
+        nameCache[ck] = CachedDevice(name: name, companyID: companyID,
                                      hasFastPair: hasFastPair, lastSeen: Date())
         if nameCache.count > Self.nameCacheLimit,
            let evict = nameCache.min(by: { $0.value.lastSeen < $1.value.lastSeen })?.key {
@@ -460,12 +580,15 @@ class ProximityManager {
                 let now = Date()
                 self.leAdverts = Dictionary(uniqueKeysWithValues:
                     self.leAdverts.filter { pair in
-                        let limit = (pair.key == self.pinnedLEID) ? 300.0 : 60.0
+                        let limit = (pair.key == self.pinnedUUIDHint) ? 300.0 : 60.0
                         return now.timeIntervalSince(pair.value.at) < limit
                     }.sorted { $0.value.at > $1.value.at }.prefix(30).map { ($0.key, $0.value) })
 
-                // A pinned advertisement feeds the live sample stream even without a held GATT link.
-                if key == self.pinnedLEID {
+                // A pinned advertisement feeds the live sample stream even without a
+                // held GATT link. Name matching (not the identifier) is what survives
+                // rotation — a fresh locator is adopted silently (see adoptLocator).
+                if self.isPinnedSight(uuid: key, name: label, companyID: companyID ?? previous?.companyID) {
+                    if key != self.pinnedUUIDHint { self.adoptLocator(uuid: key) }
                     self.recordSample(rssi: rssi, kind: "LE-adv")
                 }
             }
@@ -615,7 +738,7 @@ class ProximityManager {
     private func recordSample(rssi: Int, kind: String) {
         // Unpinned samples (e.g. an in-flight GATT read landing after unpin)
         // must never repopulate the monitored signal — no pin, no signal.
-        guard pinnedLEID != nil else { return }
+        guard pinnedKey != nil else { return }
         let now = Date()
         // Stale-EMA reset: if the previous sample is older than the freshness
         // horizon, the old smoothed value describes a different situation
@@ -631,7 +754,7 @@ class ProximityManager {
     }
 
     private func evaluatePresenceState() {
-        guard pinnedLEID != nil else {
+        guard pinnedKey != nil else {
             presenceState = .idle
             awayDuration = 0
             isVeilActive = false
@@ -689,16 +812,21 @@ class ProximityManager {
     }
 
     // MARK: - Device Management
-    func pinLEDevice(id: String) {
+    func pinLEDevice(key: String, uuid: String) {
         guard !Self.isPreview else { return }
-        pinnedLEID = id
+        pinnedKey = key
+        pinnedUUIDHint = uuid
+        lastRelink = nil
+        lastReaderAim = Date()
         resetStateAndFilter()
         leReader?.stop()
-        leReader?.start(targetName: "", pinnedID: pinnedUUID)
+        leReader?.start(targetName: Self.readerTargetName(forKey: key), pinnedID: UUID(uuidString: uuid))
     }
 
     func unpinLEDevice() {
-        pinnedLEID = nil
+        pinnedKey = nil
+        pinnedUUIDHint = nil
+        lastRelink = nil
         resetStateAndFilter()
         leReader?.stop()
         leReader?.start(targetName: "", pinnedID: nil)
@@ -707,14 +835,14 @@ class ProximityManager {
     // MARK: - Onboarding Submit
     /// The one and only write path from onboarding (the "submit" button).
     /// Applies the draft atomically: thresholds persist via didSets, pinning
-    /// persists the identifier and attaches the link (reset clears histories
+    /// persists the stable key plus the current locator (reset clears histories
     /// but never thresholds). Fresh pins always re-accumulate grace.
     /// Quitting before this runs leaves live state byte-identical.
-    func commitOnboardingDraft(pinnedID: String?, veilOn: Double, veilOff: Double) {
+    func commitOnboardingDraft(pinnedKey: String?, uuidHint: String?, veilOn: Double, veilOff: Double) {
         guard !Self.isPreview else { return }
         veilOnThreshold = veilOn
         veilOffThreshold = veilOff
-        if let pinnedID { pinLEDevice(id: pinnedID) }
+        if let pinnedKey { pinLEDevice(key: pinnedKey, uuid: uuidHint ?? "") }
         UserDefaults.standard.set(true, forKey: "BRB.hasCompletedOnboarding")
         reconcileVeilPresentation()
     }
@@ -815,7 +943,8 @@ extension ProximityManager {
             "AAAAAAAA-0000-0000-0000-000000000001": AdvertSample(name: "AirPods Pro", rssi: -55, at: Date()),
             "AAAAAAAA-0000-0000-0000-000000000002": AdvertSample(name: "(unnamed)", rssi: -72, at: Date(), companyID: 0x004C),
         ]
-        mock.pinnedLEID = "AAAAAAAA-0000-0000-0000-000000000001"
+        mock.pinnedKey = "airpods pro"
+        mock.pinnedUUIDHint = "AAAAAAAA-0000-0000-0000-000000000001"
         return mock
     }
 }

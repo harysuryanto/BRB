@@ -38,7 +38,8 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
     private var targetName: String = ""
-    /// User-pinned LE peripheral: matched by identifier, not name.
+    /// Current locator for the pin (ephemeral): id match wins while visible,
+    /// the pinned target name follows across identifier rotation.
     var pinnedID: UUID?
     private var lastRequest: Date = .distantPast
     private var seenCount: Int = 0
@@ -129,10 +130,13 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     }
 
     private func matches(id: UUID, name: String) -> Bool {
-        // Pin-by-identifier: once a device is pinned, only that identifier
-        // may claim the monitor link — otherwise a nearby TWS-looking
-        // stranger could steal the link and feed its RSSI into presence.
-        if pinnedID != nil { return id == pinnedID }
+        // Current locator wins while visible. Name follow second: identifiers
+        // rotate across case cycles, so a pinned target name re-claims the
+        // link under a fresh identifier (same-name strangers remain a known
+        // collision case, handled with vendor checks at the engine layer).
+        if let pinnedID, id == pinnedID { return true }
+        if !targetName.isEmpty { return matches(name: name) }
+        if pinnedID != nil { return false }
         return matches(name: name)
     }
 

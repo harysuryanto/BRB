@@ -111,9 +111,15 @@ private enum DeviceCategory {
 // displayTitle, identityChip) live next to AdvertSample in
 // ProximityManager.swift — every surface uses the same source of truth.
 
-private func deviceSubtitle(for id: String, sample: AdvertSample, chip: String? = nil) -> String {
-    var parts = [String(id.prefix(8)), ageString(since: sample.at)]
-    if let chip = chip ?? chipText(for: sample) { parts.append(chip) }
+/// Scanner subtitle: session-locator hex, freshness age, vendor chip,
+/// collision note. The leading hex is the CURRENT locator identifier — it
+/// rotates across case cycles, so it identifies the session, not the device
+/// (identity lives in the title/key). Kept because it is the strongest
+/// glanceable differentiator between otherwise-identical Unknown cards.
+private func deviceSubtitle(sample: AdvertSample, chip: String?, multi: Bool, locator: String) -> String {
+    var parts = [String(locator.prefix(8)), ageString(since: sample.at)]
+    if let chip { parts.append(chip) }
+    if multi { parts.append("2× seen") }
     return parts.joined(separator: " • ")
 }
 
@@ -187,23 +193,6 @@ private func deviceGradient(for name: String) -> (Color, Color) {
     deviceCategory(for: name).gradient
 }
 
-private func sortedDeviceIDs(_ manager: ProximityManager) -> [String] {
-    // Pure name order — pin state never moves cards. Named A–Z first,
-    // all unnamed last. Within unnamed, stable identifier order (NOT live
-    // RSSI): re-sorting on every signal fluctuation would reshuffle the
-    // grid several times a second and defeat appear/disappear animations.
-    // Identification still works — dBm and bars live-update on each card.
-    manager.leAdverts.keys.sorted { a, b in
-        let aName = manager.leAdverts[a]?.name ?? ""
-        let bName = manager.leAdverts[b]?.name ?? ""
-        let aUnnamed = isUnnamed(aName)
-        let bUnnamed = isUnnamed(bName)
-        if aUnnamed != bUnnamed { return bUnnamed }
-        if aUnnamed { return a < b }
-        return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
-    }
-}
-
 // MARK: - Subviews
 
 struct DeviceArtView: View {
@@ -263,9 +252,9 @@ enum PickerMode {
 }
 
 struct DeviceCardView: View {
-    var manager: ProximityManager
-    var id: String
-    var sample: AdvertSample
+    /// One physical device (same-name sightings collapsed). The group key is
+    /// the stable identity; the locator UUID inside rotates freely.
+    var group: ProximityManager.DeviceGroup
     var isSelected: Bool
     var mode: PickerMode = .live
     var action: () -> Void
@@ -276,11 +265,12 @@ struct DeviceCardView: View {
     }
 
     var body: some View {
+        let sample = group.sample
         let stale = isStaleSample(sample)
         Button(action: action) {
             VStack(spacing: DS.spacingSM) {
                 ZStack(alignment: .topTrailing) {
-                    DeviceArtView(name: manager.artName(for: id), seed: id)
+                    DeviceArtView(name: group.art, seed: group.key)
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 20))
@@ -291,7 +281,7 @@ struct DeviceCardView: View {
                 }
                 .padding(.top, DS.spacingXS)
 
-                Text(manager.displayName(for: id))
+                Text(group.name)
                     .font(.subheadline.bold())
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -303,7 +293,7 @@ struct DeviceCardView: View {
                         .foregroundColor(stale ? .secondary : .primary)
                 }
 
-                Text(deviceSubtitle(for: id, sample: sample, chip: manager.identityChip(for: id)))
+                Text(deviceSubtitle(sample: sample, chip: group.chip, multi: group.uuids.count > 1, locator: group.locator))
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -331,15 +321,15 @@ struct DeviceCardView: View {
               : (isSelected ? "Selected — click again to deselect" : "Select this device"))
         .accessibilityLabel(mode == .live
             ? (isSelected
-               ? "Monitored, \(deviceCategory(for: sample.name).label), \(manager.displayName(for: id)), \(sample.rssi) dBm. Activate to unpin."
-               : "Monitor \(deviceCategory(for: sample.name).label), \(manager.displayName(for: id)), \(sample.rssi) dBm.")
+               ? "Monitored, \(deviceCategory(for: sample.name).label), \(group.name), \(sample.rssi) dBm. Activate to unpin."
+               : "Monitor \(deviceCategory(for: sample.name).label), \(group.name), \(sample.rssi) dBm.")
             : (isSelected
-               ? "Selected, \(deviceCategory(for: sample.name).label), \(manager.displayName(for: id)), \(sample.rssi) dBm. Activate to deselect."
-               : "Select \(deviceCategory(for: sample.name).label), \(manager.displayName(for: id)), \(sample.rssi) dBm."))
+               ? "Selected, \(deviceCategory(for: sample.name).label), \(group.name), \(sample.rssi) dBm. Activate to deselect."
+               : "Select \(deviceCategory(for: sample.name).label), \(group.name), \(sample.rssi) dBm."))
         .contextMenu {
-            Button("Copy device ID") {
+            Button("Copy session ID") {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(id, forType: .string)
+                NSPasteboard.general.setString(group.locator, forType: .string)
             }
         }
     }
@@ -350,35 +340,35 @@ struct DeviceCardView: View {
 struct DevicePickerView: View {
     let manager: ProximityManager
     /// Selection override for draft contexts (onboarding): when set, cards
-    /// highlight/toggle this id instead of the live pin, so picking writes
-    /// no live state. Nil (settings) = follow the live pin directly.
+    /// highlight/toggle this stable key instead of the live pin, so picking
+    /// writes no live state. Nil (settings) = follow the live pin directly.
     var selectedID: String? = nil
-    var onToggle: ((String) -> Void)? = nil
+    var onToggle: ((ProximityManager.DeviceGroup) -> Void)? = nil
     var mode: PickerMode = .live
 
     private let columns = [
         GridItem(.adaptive(minimum: DS.deviceCardMinWidth, maximum: DS.deviceCardMaxWidth), spacing: DS.deviceGridSpacing)
     ]
 
-    private var effectiveSelectedID: String? { selectedID ?? manager.pinnedLEID }
+    private var effectiveSelectedID: String? { selectedID ?? manager.pinnedKey }
 
-    private func toggle(_ id: String) {
-        if let onToggle { onToggle(id); return }
-        if manager.pinnedLEID == id { manager.unpinLEDevice() }
-        else { manager.pinLEDevice(id: id) }
+    private func toggle(_ group: ProximityManager.DeviceGroup) {
+        if let onToggle { onToggle(group); return }
+        if manager.pinnedKey == group.key { manager.unpinLEDevice() }
+        else { manager.pinLEDevice(key: group.key, uuid: group.locator) }
     }
 
     var body: some View {
-        let ids = sortedDeviceIDs(manager)
+        let groups = manager.deviceGroups
         VStack(alignment: .leading, spacing: DS.spacingSM) {
             HStack {
                 Text("Nearby devices")
                     .font(.subheadline.bold())
-                DSPill(text: "\(manager.leAdverts.count)", tint: .secondary)
+                DSPill(text: "\(groups.count)", tint: .secondary)
                 Spacer()
             }
 
-            if ids.isEmpty {
+            if groups.isEmpty {
                 VStack(spacing: DS.spacingSM) {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                         .font(.system(size: 32))
@@ -395,22 +385,18 @@ struct DevicePickerView: View {
                 .transition(.opacity)
             } else {
                 LazyVGrid(columns: columns, spacing: DS.deviceGridSpacing) {
-                    ForEach(ids, id: \.self) { id in
-                        if let s = manager.leAdverts[id] {
-                            DeviceCardView(
-                                manager: manager,
-                                id: id,
-                                sample: s,
-                                isSelected: effectiveSelectedID == id,
-                                mode: mode
-                            ) {
-                                toggle(id)
-                            }
-                            .transition(.asymmetric(
-                                insertion: .scale(scale: 0.85).combined(with: .opacity),
-                                removal: .opacity
-                            ))
+                    ForEach(groups, id: \.key) { group in
+                        DeviceCardView(
+                            group: group,
+                            isSelected: effectiveSelectedID == group.key,
+                            mode: mode
+                        ) {
+                            toggle(group)
                         }
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.85).combined(with: .opacity),
+                            removal: .opacity
+                        ))
                     }
                 }
                 Text(mode == .live
@@ -420,8 +406,8 @@ struct DevicePickerView: View {
                     .foregroundColor(.secondary)
             }
         }
-        // Fires only when the id set/order changes (insert/remove) — live
+        // Fires only when the group set/order changes (insert/remove) — live
         // dBm/age text updates don't retrigger it.
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ids)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: groups.map(\.key))
     }
 }

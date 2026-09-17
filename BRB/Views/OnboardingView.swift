@@ -19,7 +19,8 @@ struct OnboardingView: View {
     @State private var calibrationCaptured: Double? = nil
 
     // MARK: - Draft (registration form — nothing here touches live state
-    // until Finish submits via commitOnboardingDraft).
+    // until Finish submits via commitOnboardingDraft). The draft holds a
+    // stable device key, never an identifier (identifiers rotate).
     @State private var draftPinnedID: String?
     @State private var draftVeilOn: Double
     @State private var draftVeilOff: Double
@@ -35,7 +36,7 @@ struct OnboardingView: View {
         self.manager = manager
         self.onComplete = onComplete
         // Prefill from live so re-runs open as an edit form, not blank.
-        _draftPinnedID = State(initialValue: manager.pinnedLEID)
+        _draftPinnedID = State(initialValue: manager.pinnedKey)
         _draftVeilOn = State(initialValue: manager.veilOnThreshold)
         _draftVeilOff = State(initialValue: manager.veilOffThreshold)
     }
@@ -44,7 +45,7 @@ struct OnboardingView: View {
     /// device is never pinned, so engine liveRSSI may belong to a stranger).
     private var draftSample: AdvertSample? {
         guard let id = draftPinnedID else { return nil }
-        return manager.leAdverts[id]
+        return manager.group(forKey: id)?.sample
     }
 
     /// Raw advert RSSI feed for the draft filter, nil when absent/stale.
@@ -157,7 +158,7 @@ struct OnboardingView: View {
                     .disabled(draftPinnedID == nil)
                 } else if currentStep == 3 {
                     Button("Finish Setup") {
-                        manager.commitOnboardingDraft(pinnedID: draftPinnedID, veilOn: draftVeilOn, veilOff: draftVeilOff)
+                        manager.commitOnboardingDraft(pinnedKey: draftPinnedID, uuidHint: draftPinnedID.flatMap { manager.group(forKey: $0)?.locator }, veilOn: draftVeilOn, veilOff: draftVeilOff)
                         onComplete()
                     }
                     .buttonStyle(.borderedProminent)
@@ -228,9 +229,9 @@ struct OnboardingView: View {
                 .foregroundColor(.secondary)
 
             if let id = draftPinnedID {
-                let name = manager.displayName(for: id)
+                let name = manager.displayName(forKey: id)
                 HStack {
-                    DeviceArtView(name: manager.artName(for: id), size: 32, seed: id)
+                    DeviceArtView(name: manager.artName(forKey: id), size: 32, seed: id)
                     Text("Selected device: **\(name)**")
                         .font(.subheadline)
                     Spacer()
@@ -242,10 +243,10 @@ struct OnboardingView: View {
                 .cornerRadius(DS.radius)
             }
 
-            DevicePickerView(
+                DevicePickerView(
                 manager: manager,
                 selectedID: draftPinnedID,
-                onToggle: { draftPinnedID = ($0 == draftPinnedID) ? nil : $0 },
+                onToggle: { draftPinnedID = ($0.key == draftPinnedID) ? nil : $0.key },
                 mode: .draft
             )
         }
@@ -286,15 +287,15 @@ struct OnboardingView: View {
                     }
                 }
 
-                if let id = draftPinnedID, let sample = draftSample {
+                if let id = draftPinnedID, let group = manager.group(forKey: id) {
                     HStack(spacing: DS.spacingSM) {
                         Text("Device:")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(manager.displayName(for: id))
+                        Text(group.name)
                             .font(.caption.bold())
 
-                        if let chip = manager.identityChip(for: id) {
+                        if let chip = group.chip {
                             Text("•")
                                 .font(.caption)
                                 .foregroundColor(.secondary)

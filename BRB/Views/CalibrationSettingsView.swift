@@ -14,7 +14,7 @@ struct CalibrationSettingsView: View {
 
     /// Whether there is a currently pinned device with an active, non-gone signal.
     private var hasActiveSignal: Bool {
-        manager.pinnedLEID != nil &&
+        manager.pinnedKey != nil &&
         manager.presenceState != .gone &&
         manager.presenceState != .idle &&
         effectiveReading != nil
@@ -24,7 +24,7 @@ struct CalibrationSettingsView: View {
     /// shows. Nil while no filtered sample exists (waiting state), never a
     /// raw fallback.
     private var effectiveReading: Double? {
-        guard manager.pinnedLEID != nil else { return nil }
+        guard manager.pinnedKey != nil else { return nil }
         guard manager.presenceState != .gone, manager.presenceState != .idle else { return nil }
         return manager.smoothedRSSI
     }
@@ -63,9 +63,9 @@ struct CalibrationSettingsView: View {
     private var liveSignalCard: some View {
         // Gate on pin state, not name resolvability: a GATT-held bud stops
         // advertising and its cached name ages out, but monitoring continues.
-        if let pinnedName = manager.pinnedDisplayName, manager.pinnedLEID != nil {
+        if let pkey = manager.pinnedKey, let pinnedName = manager.pinnedDisplayName {
             HStack(alignment: .center, spacing: DS.spacingMD) {
-                DeviceArtView(name: manager.pinnedName ?? pinnedName, size: 44, seed: manager.pinnedLEID)
+                DeviceArtView(name: manager.artName(forKey: pkey), size: 44, seed: pkey)
 
                 VStack(alignment: .leading, spacing: DS.spacingXS) {
                     HStack(spacing: DS.spacingSM) {
@@ -103,8 +103,7 @@ struct CalibrationSettingsView: View {
                                     .foregroundColor(manager.isStale ? .orange : .secondary)
                             }
 
-                            if let pid = manager.pinnedLEID,
-                               let chip = manager.identityChip(for: pid) {
+                            if let chip = manager.group(forKey: pkey)?.chip {
                                 Text("• \(chip)")
                                     .font(.caption)
                                     .foregroundColor(.secondary)

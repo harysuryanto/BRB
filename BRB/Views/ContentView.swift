@@ -145,8 +145,14 @@ struct ContentView: View {
 #endif
                     }
 
+                    if let relink = manager.lastRelink, Date().timeIntervalSince(relink.at) < 60 {
+                        Text("Re-linked \(relink.name) — new session")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
                     // Monitored signal only: no pin, no signal lines.
-                    if manager.pinnedLEID != nil, let smoothed = manager.smoothedRSSI {
+                    if manager.pinnedKey != nil, let smoothed = manager.smoothedRSSI {
                         HStack(spacing: DS.spacingSM) {
                             Text("Signal:")
                                 .font(.caption)
@@ -154,13 +160,13 @@ struct ContentView: View {
                             Text("\(Int(round(smoothed))) dBm")
                                 .font(.system(.subheadline, design: .monospaced).bold())
                         }
-                    } else if manager.pinnedLEID != nil {
+                    } else if manager.pinnedKey != nil {
                         Text(manager.leStatus)
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
 
-                    if manager.pinnedLEID != nil, let age = manager.sampleAge {
+                    if manager.pinnedKey != nil, let age = manager.sampleAge {
                         Text("Sample age: \(String(format: "%.1f", age))s \(manager.isStale ? "(stale)" : "")")
                             .font(.caption)
                             .foregroundColor(manager.isStale ? .orange : .secondary)
@@ -205,7 +211,7 @@ struct ContentView: View {
                     Text("Monitored Earbuds")
                         .font(.headline)
                     Spacer()
-                    if manager.pinnedLEID != nil {
+                    if manager.pinnedKey != nil {
                         Button("Unpin Device") {
                             manager.unpinLEDevice()
                         }
@@ -216,9 +222,9 @@ struct ContentView: View {
                 }
 
                 // Gate on pin state, not name resolvability (see liveSignalCard).
-                if let pinned = manager.pinnedDisplayName {
+                if let pkey = manager.pinnedKey, let pinned = manager.pinnedDisplayName {
                     HStack {
-                        DeviceArtView(name: manager.pinnedName ?? pinned, size: 40, seed: manager.pinnedLEID)
+                        DeviceArtView(name: manager.artName(forKey: pkey), size: 40, seed: pkey)
                         Text(pinned)
                             .font(.subheadline.bold())
                         Spacer()

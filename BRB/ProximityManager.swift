@@ -881,6 +881,19 @@ class ProximityManager {
             return
         }
 
+        // Pinned but no sample from the current pin yet (e.g. just switched
+        // devices): absence of evidence is not evidence of absence — stay
+        // idle with the veil down until the first sample arrives. Without
+        // this, the Gone branch below fires on the huge fallback age
+        // (time-since-launch) and flashes the veil on every switch.
+        guard liveRSSIAt != nil else {
+            presenceState = .idle
+            awayDuration = 0
+            isVeilActive = false
+            veilReason = nil
+            return
+        }
+
         let effectiveAge = sampleAge ?? Date().timeIntervalSince(monitoringStartedAt)
 
         // Gone condition: No sightings for >= 2 * graceDelay.

@@ -83,7 +83,9 @@ struct ContentView: View {
             .tag(SettingsTab.cover)
 
             ScrollView {
-                CalibrationSettingsView(manager: manager)
+                CalibrationSettingsView(manager: manager) {
+                    selectedTab = .device
+                }
             }
             .tabItem { Label(SettingsTab.calibration.title, systemImage: SettingsTab.calibration.icon) }
             .tag(SettingsTab.calibration)

@@ -298,6 +298,15 @@ class ProximityManager {
         return displayName(forKey: pinnedKey)
     }
 
+    /// True when the monitored signal is live but the pin has no advert entry
+    /// at all (connected buds stop advertising — the "number without a row"
+    /// state). A stale-but-visible row already explains itself, so only the
+    /// fully-absent case reports.
+    var isTrackingWithoutAdverts: Bool {
+        guard let pkey = pinnedKey, smoothedRSSI != nil else { return false }
+        return group(forKey: pkey) == nil
+    }
+
     /// Whether a sighting belongs to the pin. The UUID hint wins while
     /// visible; otherwise same stable name with vendor compatibility — the
     /// name arm is what survives identifier rotation.

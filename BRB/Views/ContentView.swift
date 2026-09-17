@@ -160,6 +160,11 @@ struct ContentView: View {
                             Text("\(Int(round(smoothed))) dBm")
                                 .font(.system(.subheadline, design: .monospaced).bold())
                         }
+                        if manager.isTrackingWithoutAdverts, let title = manager.pinnedDisplayName {
+                            Text("Your \(isUnnamed(title) ? "device" : title) ghosted the scanner. Rude. Signal's still great though.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     } else if manager.pinnedKey != nil {
                         Text(manager.leStatus)
                             .font(.caption)

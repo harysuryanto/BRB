@@ -3,7 +3,8 @@
 //  BRB Tests
 //
 //  Validates the Signal Processor, Presence State Machine,
-//  Hysteresis, Grace Timer, Suppression, and Veil Fallback Rendering.
+//  Hysteresis, Grace Timer, Suppression, Default Veil Fallback,
+//  and Device Classification.
 //
 
 import Foundation
@@ -21,8 +22,9 @@ struct EngineValidationTests {
         testGoneCondition()
         testSuppressionReturnCancellation()
         testDefaultVeilImageGeneration()
+        testDeviceClassification()
 
-        print("\n🎉 ALL 7 TEST SUITES PASSED CLEANLY!")
+        print("\n🎉 ALL 8 TEST SUITES PASSED CLEANLY!")
     }
 
     // MARK: - 1. SignalProcessor EMA
@@ -163,5 +165,56 @@ struct EngineValidationTests {
         assert(image.size.width == 800 && image.size.height == 600, "Image dimensions must match target size")
         assert(image.isValid, "Generated NSImage must be valid")
         print("  ✅ Procedural veil image generation verified.")
+    }
+
+    // MARK: - 8. Device Classification
+    static func testDeviceClassification() {
+        print("▶ Testing Device Classification...")
+
+        // A. Phone Name Patterns
+        assert(classifyDevice(name: "Hary's iPhone") == .phone, "iPhone should classify as .phone")
+        assert(classifyDevice(name: "Infinix NOTE 30") == .phone, "Infinix Note should classify as .phone")
+        assert(classifyDevice(name: "Infinix HOT 40 Pro") == .phone, "Infinix Hot should classify as .phone")
+        assert(classifyDevice(name: "Infinix-X6833B") == .phone, "Infinix model should classify as .phone")
+        assert(classifyDevice(name: "X6825") == .phone, "Infinix model number X6825 should classify as .phone")
+        assert(classifyDevice(name: "Tecno Spark 20") == .phone, "Tecno should classify as .phone")
+        assert(classifyDevice(name: "Pixel 8 Pro") == .phone, "Pixel phone should classify as .phone")
+        assert(classifyDevice(name: "Galaxy S24 Ultra") == .phone, "Galaxy S24 should classify as .phone")
+        assert(classifyDevice(name: "SM-S918B") == .phone, "Samsung model SM-S should classify as .phone")
+        assert(classifyDevice(name: "Xiaomi 13") == .phone, "Xiaomi should classify as .phone")
+        assert(classifyDevice(name: "OnePlus 12") == .phone, "OnePlus should classify as .phone")
+        assert(classifyDevice(name: "Redmi Note 12") == .phone, "Redmi should classify as .phone")
+        assert(classifyDevice(name: "POCO F5") == .phone, "POCO should classify as .phone")
+        assert(classifyDevice(name: "My Android Phone") == .phone, "Generic phone should classify as .phone")
+
+        // B. Buds vs Headphones
+        assert(classifyDevice(name: "soundcore R60i NC") == .buds, "Soundcore R60i should classify as .buds")
+        assert(classifyDevice(name: "AirPods Pro") == .buds, "AirPods Pro should classify as .buds")
+        assert(classifyDevice(name: "AirPods Max") == .headphones, "AirPods Max should classify as .headphones")
+        assert(classifyDevice(name: "WH-1000XM5") == .headphones, "Sony WH-1000XM5 should classify as .headphones")
+        assert(classifyDevice(name: "WF-1000XM5") == .buds, "Sony WF-1000XM5 should classify as .buds")
+        assert(classifyDevice(name: "Bose QuietComfort 45") == .headphones, "Bose QC45 should classify as .headphones")
+
+        // C. SIG Appearance (UUID 0x2A01)
+        assert(classifyDevice(name: "(unnamed)", sigAppearance: 0x0040) == .phone, "SIG 0x0040 (Generic Phone) should classify as .phone")
+        assert(classifyDevice(name: "(unnamed)", sigAppearance: 0x0804) == .buds, "SIG 0x0804 (Earbud) should classify as .buds")
+        assert(classifyDevice(name: "(unnamed)", sigAppearance: 0x0802) == .headphones, "SIG 0x0802 (Headphones) should classify as .headphones")
+        assert(classifyDevice(name: "(unnamed)", sigAppearance: 0x00C0) == .watch, "SIG 0x00C0 (Generic Watch) should classify as .watch")
+        assert(classifyDevice(name: "(unnamed)", sigAppearance: 0x03C2) == .mouse, "SIG 0x03C2 (Mouse) should classify as .mouse")
+
+        // D. Apple Continuity Type Byte
+        assert(classifyDevice(name: "(unnamed)", companyID: 0x004C, appleContinuityType: 0x10) == .phone, "Apple Nearby Info 0x10 should classify as .phone")
+        assert(classifyDevice(name: "(unnamed)", companyID: 0x004C, appleContinuityType: 0x07) == .buds, "Apple Proximity Pairing 0x07 should classify as .buds")
+        assert(classifyDevice(name: "(unnamed)", companyID: 0x004C, appleContinuityType: 0x12) == .tag, "Apple Find My 0x12 should classify as .tag")
+        assert(classifyDevice(name: "(unnamed)", companyID: 0x004C, appleContinuityType: 0x0B) == .watch, "Apple Watch 0x0B should classify as .watch")
+
+        // E. Transsion / Infinix Company IDs
+        assert(classifyDevice(name: "(unnamed)", companyID: 0x0660) == .phone, "Transsion company ID 0x0660 should classify as .phone")
+        assert(classifyDevice(name: "(unnamed)", companyID: 0x098A) == .phone, "Infinix company ID 0x098A should classify as .phone")
+
+        // F. Google Fast Pair Service
+        assert(classifyDevice(name: "(unnamed)", hasFastPair: true) == .buds, "Google Fast Pair service should classify as .buds")
+
+        print("  ✅ Device classification verified.")
     }
 }

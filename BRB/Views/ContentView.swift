@@ -208,7 +208,7 @@ struct ContentView: View {
             // 2. Monitored Device Info
             VStack(alignment: .leading, spacing: DS.spacingSM) {
                 HStack {
-                    Text("Monitored Earbuds")
+                    Text("Monitored Device")
                         .font(.headline)
                     Spacer()
                     if manager.pinnedKey != nil {
@@ -224,7 +224,7 @@ struct ContentView: View {
                 // Gate on pin state, not name resolvability (see liveSignalCard).
                 if let pkey = manager.pinnedKey, let pinned = manager.pinnedDisplayName {
                     HStack {
-                        DeviceArtView(name: manager.artName(forKey: pkey), size: 40, seed: pkey)
+                        DeviceArtView(name: manager.artName(forKey: pkey), category: manager.deviceCategory(forKey: pkey), size: 40, seed: pkey)
                         Text(pinned)
                             .font(.subheadline.bold())
                         Spacer()
@@ -234,7 +234,7 @@ struct ContentView: View {
                     .background(DS.cardBg)
                     .cornerRadius(DS.radius)
                 } else {
-                    Text("No device pinned. Select your earbuds from the scanner below to start monitoring.")
+                    Text("No device pinned. Select your earbuds or phone from the scanner below to start monitoring.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }

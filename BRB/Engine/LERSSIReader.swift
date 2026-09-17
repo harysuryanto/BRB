@@ -30,11 +30,12 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     /// Name resolved over GATT (peripheral id, name). Advertisements often
     /// omit the name; the GATT database usually still answers.
     var onNameResolved: ((UUID, String) -> Void)?
+    /// Bluetooth SIG Appearance resolved over GATT (UUID 0x2A01).
+    var onAppearanceResolved: ((UUID, UInt16) -> Void)?
     /// Every advertisement seen: identifier, name (may be ""), RSSI,
-    /// manufacturer company ID (nil when the packet carries no manufacturer
-    /// data — many buds advertise Fast Pair service data instead), and
-    /// whether Google Fast Pair service data (0xFE2C) is present.
-    var onAdvertisement: ((UUID, String, Int, UInt16?, Bool) -> Void)?
+    /// manufacturer company ID (nil when absent), whether Google Fast Pair
+    /// service data (0xFE2C) is present, and Apple Continuity type byte if present.
+    var onAdvertisement: ((UUID, String, Int, UInt16?, Bool, UInt8?) -> Void)?
 
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
@@ -238,12 +239,15 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         let name = p.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
         seenCount += 1
         // Identity hints for unnamed packets: manufacturer company ID (first
-        // 2 bytes, little-endian) and Google Fast Pair service data (0xFE2C).
-        // Either can be absent — call sites treat both as optional.
+        // 2 bytes, little-endian), Apple Continuity type byte, and Google Fast Pair service data (0xFE2C).
         var companyID: UInt16? = nil
+        var continuityType: UInt8? = nil
         if let mfr = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
            mfr.count >= 2 {
             companyID = UInt16(mfr[mfr.startIndex]) | (UInt16(mfr[mfr.startIndex + 1]) << 8)
+            if companyID == 0x004C, mfr.count >= 3 {
+                continuityType = mfr[mfr.startIndex + 2]
+            }
         }
         let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []
         let hasFastPair = serviceUUIDs.contains(CBUUID(string: "FE2C"))
@@ -251,7 +255,7 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         // match/connect logic so even non-connectable beacons show up.
         // This fires continuously (duplicates mode) so the nearby list,
         // pruning, and ages stay live even while a monitor link is held.
-        onAdvertisement?(p.identifier, name, RSSI.intValue, companyID, hasFastPair)
+        onAdvertisement?(p.identifier, name, RSSI.intValue, companyID, hasFastPair, continuityType)
         // Unnamed strangers get one shot at introducing themselves — the
         // resolved name flows through onNameResolved and re-keys the group.
         if isUnnamed(name) {
@@ -279,7 +283,7 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         onStatus?("LE connected: \(p.name ?? "?")")
         p.delegate = self
         p.readRSSI()
-        // Ask the GATT database for a name: Generic Access (Device Name)
+        // Ask the GATT database for identity: Generic Access (Device Name + Appearance)
         // + Device Information (Model/Manufacturer). Advertisements often
         // carry none, but these characteristics usually answer.
         p.discoverServices([CBUUID(string: "1800"), CBUUID(string: "180A")])
@@ -340,15 +344,23 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard error == nil, let chars = service.characteristics else { return }
-        for c in chars where ["2A00", "2A24", "2A29"].contains(c.uuid.uuidString) {
+        for c in chars where ["2A00", "2A01", "2A24", "2A29"].contains(c.uuid.uuidString) {
             peripheral.readValue(for: c)
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard error == nil,
-              ["2A00", "2A24", "2A29"].contains(characteristic.uuid.uuidString),
-              let data = characteristic.value, !data.isEmpty else { return }
+        guard error == nil, let data = characteristic.value, !data.isEmpty else { return }
+        let uuidStr = characteristic.uuid.uuidString
+
+        // 2A01 is standard 16-bit Bluetooth SIG Appearance
+        if uuidStr == "2A01", data.count >= 2 {
+            let appearance = UInt16(data[data.startIndex]) | (UInt16(data[data.startIndex + 1]) << 8)
+            onAppearanceResolved?(peripheral.identifier, appearance)
+            return
+        }
+
+        guard ["2A00", "2A24", "2A29"].contains(uuidStr) else { return }
         let name = (String(data: data, encoding: .utf8) ?? "")
             .trimmingCharacters(in: .controlCharacters).trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }

@@ -39,77 +39,10 @@ private func isStaleSample(_ sample: AdvertSample) -> Bool {
     Date().timeIntervalSince(sample.at) > 12.0
 }
 
-// MARK: - Device class (inferred from name — BLE carries no photos/class)
-
-private enum DeviceCategory {
-    case buds
-    case headphones
-    case phone
-    case computer
-    case tablet
-    case watch
-    case mouse
-    case keyboard
-    case speaker
-    case tag
-    case unknown
-
-    var symbol: String {
-        switch self {
-        case .buds: return "airpodspro"
-        case .headphones: return "headphones"
-        case .phone: return "iphone"
-        case .computer: return "macbook"
-        case .tablet: return "ipad"
-        case .watch: return "applewatch"
-        case .mouse: return "computermouse"
-        case .keyboard: return "keyboard"
-        case .speaker: return "hifispeaker"
-        case .tag: return "airtag"
-        case .unknown: return "antenna.radiowaves.left.and.right"
-        }
-    }
-
-    /// Dark-enough stops throughout: the 28pt glyph is white, so every
-    /// gradient must keep contrast (no yellows / light greys / cyans).
-    var gradient: (Color, Color) {
-        switch self {
-        case .buds: return (.purple, .blue)
-        case .headphones: return (.indigo, .teal)
-        case .phone: return (.green, .teal)
-        case .computer: return (Color(red: 0.32, green: 0.35, blue: 0.43), .black)
-        case .tablet: return (.blue, .indigo)
-        case .watch: return (.orange, .pink)
-        case .mouse: return (.orange, .brown)
-        case .keyboard: return (.purple, .pink)
-        case .speaker: return (.red, .orange)
-        case .tag: return (.teal, .blue)
-        case .unknown: return (Color(white: 0.35), .black)
-        }
-    }
-
-    /// Short spoken/written label for accessibility.
-    var label: String {
-        switch self {
-        case .buds: return "Earbuds"
-        case .headphones: return "Headphones"
-        case .phone: return "Phone"
-        case .computer: return "Computer"
-        case .tablet: return "Tablet"
-        case .watch: return "Watch"
-        case .mouse: return "Mouse"
-        case .keyboard: return "Keyboard"
-        case .speaker: return "Speaker"
-        case .tag: return "Tracker tag"
-        case .unknown: return "Bluetooth device"
-        }
-    }
-}
-
 // MARK: - Device identity
 // Shared identity helpers (isUnnamed, vendorName, deviceSuffix,
-// displayTitle, identityChip) live next to AdvertSample in
-// ProximityManager.swift — every surface uses the same source of truth.
+// displayTitle) and DeviceCategory / classifyDevice live in
+// ProximityManager.swift and DeviceClassifier.swift — every surface uses the same source of truth.
 
 /// Scanner subtitle: session-locator hex, freshness age, vendor chip,
 /// collision note. The leading hex is the CURRENT locator identifier — it
@@ -136,51 +69,13 @@ private func stableHue(for string: String) -> Double {
 }
 
 private func deviceCategory(for name: String) -> DeviceCategory {
-    let n = name.lowercased()
-    if isUnnamed(name) { return .unknown }
-    // Buds / headphones first (primary use case — check before generic "buds" traps).
-    if n.contains("airpods") { return .buds }
-    if n.contains("buds") || n.contains("freebuds") || n.contains("soundcore")
-        || n.contains("r60i") || n.contains("aero") || n.contains("life ")
-        || n.contains("pixel buds") || n.contains("echo buds") { return .buds }
-    if n.contains("headphone") || n.contains("headset")
-        || n.contains("sony") || n.contains("bose") || n.contains("beats")
-        || n.contains("jbl") || n.contains("sennheiser") || n.contains("shure")
-        || n.contains("audio-technica") || n.contains("arctis") || n.contains("hyperx") { return .headphones }
-    // Phones / computers / tablets.
-    if n.contains("iphone") || n.contains("pixel") || n.contains("galaxy s")
-        || n.contains("galaxy a") || n.contains("galaxy z") || n.contains("oneplus")
-        || n.contains("xiaomi") || n.contains("oppo") || n.contains("vivo")
-        || n.contains("honor") || n.contains("motorola") || n.contains("nothing phone") { return .phone }
-    if n.contains("macbook") || n.contains("thinkpad") || n.contains("surface")
-        || n.contains("laptop") || n.contains("desktop") || n.contains("imac")
-        || n.contains("mac mini") || n.contains("mac studio") || n.contains("dell")
-        || n.contains("hp ") || n.contains("lenovo") { return .computer }
-    if n.contains("ipad") || n.contains("tablet") || n.contains("tab s") { return .tablet }
-    // Wearables / tags.
-    if n.contains("watch") || n.contains("fitbit") || n.contains("garmin")
-        || n.contains("amazfit") || n.contains("versa") || n.contains("sense")
-        || n.contains("charge 5") || n.contains("band ") { return .watch }
-    if n.contains("airtag") || n.contains("tile") || n.contains("chipolo")
-        || n.contains("smarttag") { return .tag }
-    // Desk peripherals.
-    if n.contains("mouse") || n.contains("mx master") || n.contains("magic mouse")
-        || n.contains("m350") || n.contains("m650") || n.contains("g pro")
-        || n.contains("deathadder") || n.contains("trackpad") { return .mouse }
-    if n.contains("keyboard") || n.contains("mx keys") || n.contains("k380")
-        || n.contains("k780") || n.contains("magic keyboard") || n.contains("keychron") { return .keyboard }
-    // Speakers / displays.
-    if n.contains("speaker") || n.contains("homepod") || n.contains("echo")
-        || n.contains("nest") || n.contains("sonos") || n.contains("flip")
-        || n.contains("charge 4") || n.contains("charge 5") || n.contains("go 3")
-        || n.contains("soundbar") { return .speaker }
-    return .unknown
+    classifyDevice(name: name)
 }
 
 // MARK: - Art helpers (generated — BLE carries no photos)
 
 private func deviceSymbol(for name: String) -> String {
-    deviceCategory(for: name).symbol
+    classifyDevice(name: name).symbol
 }
 
 /// Runtime guard: an invalid SF Symbol name renders as *nothing* (blank tile),
@@ -191,34 +86,40 @@ private func safeSymbol(_ name: String) -> String {
 }
 
 private func deviceGradient(for name: String) -> (Color, Color) {
-    deviceCategory(for: name).gradient
+    classifyDevice(name: name).gradient
 }
 
 // MARK: - Subviews
 
 struct DeviceArtView: View {
     var name: String
+    var category: DeviceCategory? = nil
     var size: CGFloat = DS.deviceArtSize
     /// Stable per-device tint seed (identifier). Tints only the generic
     /// unknown art so unnamed cards are visually distinct without implying
     /// a device type we don't know. Nil = category gradient as before.
     var seed: String? = nil
 
+    private var resolvedCategory: DeviceCategory {
+        category ?? classifyDevice(name: name)
+    }
+
     var body: some View {
+        let cat = resolvedCategory
         let (c1, c2): (Color, Color) = {
-            if let seed, deviceCategory(for: name) == .unknown {
+            if let seed, cat == .unknown {
                 let h = stableHue(for: seed)
                 return (Color(hue: h, saturation: 0.55, brightness: 0.45),
                         Color(hue: (h + 0.08).truncatingRemainder(dividingBy: 1.0),
                               saturation: 0.6, brightness: 0.3))
             }
-            return deviceGradient(for: name)
+            return cat.gradient
         }()
         ZStack {
             RoundedRectangle(cornerRadius: DS.radius)
                 .fill(LinearGradient(colors: [c1, c2], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: size, height: size)
-            Image(systemName: safeSymbol(deviceSymbol(for: name)))
+            Image(systemName: safeSymbol(cat.symbol))
                 .font(.system(size: size * 0.44))
                 .foregroundColor(.white)
                 .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
@@ -273,7 +174,7 @@ struct DeviceCardView: View {
         Button(action: action) {
             VStack(spacing: DS.spacingSM) {
                 ZStack(alignment: .topTrailing) {
-                    DeviceArtView(name: group.art, seed: group.key)
+                    DeviceArtView(name: group.art, category: group.category, seed: group.key)
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 20))
@@ -324,11 +225,11 @@ struct DeviceCardView: View {
               : (isSelected ? "Selected — click again to deselect" : "Select this device"))
         .accessibilityLabel(mode == .live
             ? (isSelected
-               ? "Monitored, \(deviceCategory(for: sample.name).label), \(group.name), \(sample.rssi) dBm. Activate to unpin."
-               : "Monitor \(deviceCategory(for: sample.name).label), \(group.name), \(sample.rssi) dBm.")
+               ? "Monitored, \(group.category.label), \(group.name), \(sample.rssi) dBm. Activate to unpin."
+               : "Monitor \(group.category.label), \(group.name), \(sample.rssi) dBm.")
             : (isSelected
-               ? "Selected, \(deviceCategory(for: sample.name).label), \(group.name), \(sample.rssi) dBm. Activate to deselect."
-               : "Select \(deviceCategory(for: sample.name).label), \(group.name), \(sample.rssi) dBm."))
+               ? "Selected, \(group.category.label), \(group.name), \(sample.rssi) dBm. Activate to deselect."
+               : "Select \(group.category.label), \(group.name), \(sample.rssi) dBm."))
         .contextMenu {
             Button("Copy session ID") {
                 NSPasteboard.general.clearContents()
@@ -378,7 +279,7 @@ struct DevicePickerView: View {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                         .font(.system(size: 32))
                         .foregroundColor(.secondary)
-                    Text("Nothing heard yet — move the bud or wait for a scan burst.")
+                    Text("Nothing heard yet — move the device or wait for a scan burst.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -416,12 +317,12 @@ struct DevicePickerView: View {
     private func deviceGrid(for list: [ProximityManager.DeviceGroup]) -> some View {
         LazyVGrid(columns: columns, spacing: DS.deviceGridSpacing) {
             ForEach(list, id: \.key) { group in
-                        DeviceCardView(
-                            group: group,
-                            isSelected: effectiveSelectedID == group.key,
-                            mode: mode,
-                            resolving: manager.resolvingIDs.contains(group.locator)
-                        ) {
+                DeviceCardView(
+                    group: group,
+                    isSelected: effectiveSelectedID == group.key,
+                    mode: mode,
+                    resolving: manager.resolvingIDs.contains(group.locator)
+                ) {
                     toggle(group)
                 }
                 .transition(.asymmetric(

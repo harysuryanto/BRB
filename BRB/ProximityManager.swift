@@ -22,6 +22,10 @@ struct AdvertSample: Codable {
     var companyID: UInt16? = nil
     /// Whether Google Fast Pair service data (0xFE2C) was present.
     var hasFastPairService: Bool = false
+    /// Apple Continuity type byte (0x10 = Nearby Info/Phone, 0x07 = AirPods, 0x12 = AirTag, 0x0B = Watch).
+    var appleContinuityType: UInt8? = nil
+    /// Bluetooth SIG Appearance value (UUID 0x2A01) if resolved via GATT.
+    var sigAppearance: UInt16? = nil
 }
 
 // MARK: - Device identity (single source of truth for every surface)
@@ -36,7 +40,7 @@ func isUnnamed(_ name: String) -> Bool {
     return n.isEmpty || n.lowercased().contains("(unnamed)")
 }
 
-/// SIG-verified manufacturer company IDs for audio/wearable-relevant vendors.
+/// SIG-verified manufacturer company IDs for audio/wearable/mobile vendors.
 /// Unmapped IDs show no chip (silent fallback) — never invent a vendor.
 func vendorName(for companyID: UInt16?) -> String? {
     guard let companyID else { return nil }
@@ -55,6 +59,22 @@ func vendorName(for companyID: UInt16?) -> String? {
     case 0x008A: return "Jawbone"
     case 0x0059: return "Nordic"
     case 0x005D: return "Realtek"
+    case 0x02B0, 0x0742, 0x0499: return "Anker"
+    case 0x004F: return "Logitech"
+    case 0x038F: return "Xiaomi"
+    case 0x0735, 0x0853: return "OnePlus"
+    case 0x0548: return "OPPO"
+    case 0x063B: return "Realme"
+    case 0x0746: return "Vivo"
+    case 0x0660: return "Transsion"
+    case 0x098A: return "Infinix"
+    case 0x08A8: return "Tecno"
+    case 0x027D: return "Huawei"
+    case 0x0171: return "Amazon"
+    case 0x0986: return "Nothing"
+    case 0x000F: return "Broadcom"
+    case 0x01D0: return "ZTE"
+    case 0x0286: return "Asus"
     default: return nil
     }
 }
@@ -108,6 +128,7 @@ class ProximityManager {
         var companyID: UInt16?
         var hasFastPair: Bool
         var lastSeen: Date
+        var sigAppearance: UInt16? = nil
     }
 
     private static let nameCacheKey = "BRB.deviceIdentities"
@@ -172,6 +193,7 @@ class ProximityManager {
         var sample: AdvertSample // freshest sighting (RSSI/age)
         var chip: String? // vendor / Fast Pair (unnamed only)
         var isNamed: Bool
+        var category: DeviceCategory
         var locator: String { uuids.first ?? "" }
     }
 
@@ -199,16 +221,27 @@ class ProximityManager {
             }()
             let title = real ?? cached ?? (named ? key : displayTitle(for: first))
             let art = real ?? cached ?? ""
+            let mergedCompany: UInt16? = ordered.lazy.compactMap({ self.leAdverts[$0]?.companyID }).first
+                ?? self.nameCache[key]?.companyID
+            let fp = ordered.contains(where: { self.leAdverts[$0]?.hasFastPairService == true })
+                || (self.nameCache[key]?.hasFastPair ?? false)
+            let contType: UInt8? = ordered.lazy.compactMap({ self.leAdverts[$0]?.appleContinuityType }).first
+            let appearance: UInt16? = ordered.lazy.compactMap({ self.leAdverts[$0]?.sigAppearance }).first
+                ?? self.nameCache[key]?.sigAppearance
+            let category = classifyDevice(
+                name: art.isEmpty ? title : art,
+                companyID: mergedCompany,
+                appleContinuityType: contType,
+                sigAppearance: appearance,
+                hasFastPair: fp
+            )
             var chip: String? = nil
             if !named {
-                let mergedCompany: UInt16? = ordered.lazy.compactMap({ self.leAdverts[$0]?.companyID }).first
-                    ?? self.nameCache[key]?.companyID
-                let fp = ordered.contains(where: { self.leAdverts[$0]?.hasFastPairService == true })
-                    || (self.nameCache[key]?.hasFastPair ?? false)
                 chip = vendorName(for: mergedCompany) ?? (fp ? "Fast Pair" : nil)
             }
             groups.append(DeviceGroup(key: key, name: title, art: art, uuids: ordered,
-                                      sample: fresh, chip: chip, isNamed: named))
+                                      sample: fresh, chip: chip, isNamed: named,
+                                      category: category))
         }
         return groups.sorted {
             if $0.isNamed != $1.isNamed { return $0.isNamed }
@@ -244,6 +277,18 @@ class ProximityManager {
         if let g = group(forKey: key) { return g.art }
         if let cached = nameCache[key]?.name, !isUnnamed(cached) { return cached }
         return ""
+    }
+
+    /// Device category for artwork & icons. Live group -> cache -> fallback.
+    func deviceCategory(forKey key: String) -> DeviceCategory {
+        if let g = group(forKey: key) { return g.category }
+        let name = artName(forKey: key)
+        let cached = nameCache[key]
+        return classifyDevice(
+            name: name,
+            companyID: cached?.companyID,
+            sigAppearance: cached?.sigAppearance
+        )
     }
 
     /// Display title for the pin, or nil when unpinned. Never blank while
@@ -415,7 +460,8 @@ class ProximityManager {
                 rekeyed[nk] = CachedDevice(name: newest.name,
                                            companyID: newest.companyID ?? older.companyID,
                                            hasFastPair: newest.hasFastPair || older.hasFastPair,
-                                           lastSeen: newest.lastSeen)
+                                           lastSeen: newest.lastSeen,
+                                           sigAppearance: newest.sigAppearance ?? older.sigAppearance)
             } else {
                 rekeyed[nk] = v
             }
@@ -458,14 +504,16 @@ class ProximityManager {
     /// traffic (many packets/sec) must never hammer disk, while lastSeen
     /// still advances often enough to keep daily-seen entries alive.
     /// Evicts oldest-seen beyond the cap.
-    private func cacheIdentity(id: String, name: String, companyID: UInt16?, hasFastPair: Bool) {
+    private func cacheIdentity(id: String, name: String, companyID: UInt16?, hasFastPair: Bool, sigAppearance: UInt16? = nil) {
         guard !isUnnamed(name) else { return }
         let ck = Self.stableKey(forName: name) ?? id
         let previous = nameCache[ck]
+        let app = sigAppearance ?? previous?.sigAppearance
         let changed = previous?.name != name || previous?.companyID != companyID
-            || previous?.hasFastPair != hasFastPair
+            || previous?.hasFastPair != hasFastPair || previous?.sigAppearance != app
         nameCache[ck] = CachedDevice(name: name, companyID: companyID,
-                                     hasFastPair: hasFastPair, lastSeen: Date())
+                                     hasFastPair: hasFastPair, lastSeen: Date(),
+                                     sigAppearance: app)
         if nameCache.count > Self.nameCacheLimit,
            let evict = nameCache.min(by: { $0.value.lastSeen < $1.value.lastSeen })?.key {
             nameCache.removeValue(forKey: evict)
@@ -518,45 +566,29 @@ class ProximityManager {
                 } else {
                     // Normal evaluation with fresh grace delay
                     self.awayDuration = 0
-                    self.isVeilActive = false
                 }
             }
         }
     }
 
-    // MARK: - Lifecycle
+    // MARK: - Monitoring Lifecycle
     func startMonitoring() {
         guard !Self.isPreview else { return }
+        stopMonitoring()
         monitoringStartedAt = Date()
         refreshClassicBonds()
+        startLEEngine()
+    }
 
-        guard leReader == nil else { return }
+    private func startLEEngine() {
         let reader = LERSSIReader()
-        self.leReader = reader
+        leReader = reader
 
         reader.onState = { [weak self] state in
             DispatchQueue.main.async {
                 guard let self else { return }
-                switch state {
-                case .poweredOn:
-                    self.bluetoothPermission = "Granted"
-                    self.bluetoothGranted = true
-                case .unauthorized:
-                    self.bluetoothPermission = "Denied — enable in System Settings → Privacy & Security → Bluetooth"
-                    self.bluetoothGranted = false
-                case .poweredOff:
-                    self.bluetoothPermission = "Bluetooth is off"
-                    self.bluetoothGranted = false
-                case .unsupported:
-                    self.bluetoothPermission = "Bluetooth unsupported"
-                    self.bluetoothGranted = false
-                case .resetting, .unknown:
-                    self.bluetoothPermission = "Checking…"
-                    self.bluetoothGranted = false
-                @unknown default:
-                    self.bluetoothPermission = "Unknown"
-                    self.bluetoothGranted = false
-                }
+                self.bluetoothGranted = (state == .poweredOn)
+                self.bluetoothPermission = (state == .poweredOn) ? "Granted" : "LE unavailable"
             }
         }
 
@@ -567,7 +599,7 @@ class ProximityManager {
             }
         }
 
-        reader.onAdvertisement = { [weak self] id, name, rssi, companyID, hasFastPair in
+        reader.onAdvertisement = { [weak self] id, name, rssi, companyID, hasFastPair, continuityType in
             DispatchQueue.main.async {
                 guard let self else { return }
                 let key = id.uuidString
@@ -581,12 +613,15 @@ class ProximityManager {
                     rssi: rssi,
                     at: Date(),
                     companyID: companyID ?? previous?.companyID,
-                    hasFastPairService: hasFastPair || (previous?.hasFastPairService ?? false)
+                    hasFastPairService: hasFastPair || (previous?.hasFastPairService ?? false),
+                    appleContinuityType: continuityType ?? previous?.appleContinuityType,
+                    sigAppearance: previous?.sigAppearance
                 )
                 if !isUnnamed(label) {
                     self.cacheIdentity(id: key, name: label,
                                        companyID: companyID ?? previous?.companyID,
-                                       hasFastPair: hasFastPair || (previous?.hasFastPairService ?? false))
+                                       hasFastPair: hasFastPair || (previous?.hasFastPairService ?? false),
+                                       sigAppearance: previous?.sigAppearance)
                 }
 
                 let now = Date()
@@ -606,6 +641,27 @@ class ProximityManager {
             }
         }
 
+        reader.onAppearanceResolved = { [weak self] id, appearance in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let key = id.uuidString
+                if var s = self.leAdverts[key] {
+                    s.sigAppearance = appearance
+                    self.leAdverts[key] = s
+                }
+                let cacheKey = (self.leAdverts[key].flatMap { Self.stableKey(forName: $0.name) }) ?? key
+                if let c = self.nameCache[cacheKey] {
+                    self.nameCache[cacheKey] = CachedDevice(
+                        name: c.name,
+                        companyID: c.companyID,
+                        hasFastPair: c.hasFastPair,
+                        lastSeen: Date(),
+                        sigAppearance: appearance
+                    )
+                }
+            }
+        }
+
         reader.onNameResolved = { [weak self] id, name in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -615,7 +671,8 @@ class ProximityManager {
                     self.leAdverts[key] = s
                     // GATT names are highest-trust: always overwrite the cache.
                     self.cacheIdentity(id: key, name: name, companyID: s.companyID,
-                                       hasFastPair: s.hasFastPairService)
+                                       hasFastPair: s.hasFastPairService,
+                                       sigAppearance: s.sigAppearance)
                     // A resolved name can complete the pin across rotation —
                     // adopt without waiting for the next advert.
                     if self.isPinnedSight(uuid: key, name: name, companyID: s.companyID) {
@@ -1005,7 +1062,7 @@ extension ProximityManager {
         mock.presenceState = .near
         mock.leAdverts = [
             "AAAAAAAA-0000-0000-0000-000000000001": AdvertSample(name: "AirPods Pro", rssi: -55, at: Date()),
-            "AAAAAAAA-0000-0000-0000-000000000002": AdvertSample(name: "(unnamed)", rssi: -72, at: Date(), companyID: 0x004C),
+            "AAAAAAAA-0000-0000-0000-000000000002": AdvertSample(name: "(unnamed)", rssi: -72, at: Date(), companyID: 0x004C, appleContinuityType: 0x10),
         ]
         mock.pinnedKey = "airpods pro"
         mock.pinnedUUIDHint = "AAAAAAAA-0000-0000-0000-000000000001"

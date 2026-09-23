@@ -121,7 +121,7 @@ struct TimersSecuritySettingsView: View {
                     VStack(alignment: .leading, spacing: DS.spacingXS) {
                         Text("Fail-Secure (Lock Mac on App Quit)")
                             .font(.subheadline.bold())
-                        Text("Locks your Mac session if BRB is terminated gracefully, preventing bypass.")
+                        Text("Quitting BRB while the cover is up takes you to your normal macOS login screen — not just hides it.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

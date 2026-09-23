@@ -78,11 +78,18 @@ private func deviceSymbol(for name: String) -> String {
     classifyDevice(name: name).symbol
 }
 
+/// Cache validated SF Symbols to avoid repeated NSImage lookups during UI rendering.
+private var validSymbolCache: [String: Bool] = [:]
+
 /// Runtime guard: an invalid SF Symbol name renders as *nothing* (blank tile),
 /// so verify against AppKit and fall back to a known-good symbol.
 private func safeSymbol(_ name: String) -> String {
-    if NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil { return name }
-    return "antenna.radiowaves.left.and.right"
+    if let cached = validSymbolCache[name] {
+        return cached ? name : "antenna.radiowaves.left.and.right"
+    }
+    let valid = NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+    validSymbolCache[name] = valid
+    return valid ? name : "antenna.radiowaves.left.and.right"
 }
 
 private func deviceGradient(for name: String) -> (Color, Color) {
@@ -303,6 +310,8 @@ struct DevicePickerView: View {
         // Fires only when the group set/order changes (insert/remove) — live
         // dBm/age text updates don't retrigger it.
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: groups.map(\.key))
+        .onAppear { manager.nearbyListEnabled = true }
+        .onDisappear { manager.nearbyListEnabled = false }
     }
 
     private func sectionHeader(title: String, count: Int) -> some View {

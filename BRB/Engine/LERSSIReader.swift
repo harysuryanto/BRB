@@ -36,6 +36,10 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
     /// manufacturer company ID (nil when absent), whether Google Fast Pair
     /// service data (0xFE2C) is present, and Apple Continuity type byte if present.
     var onAdvertisement: ((UUID, String, Int, UInt16?, Bool, UInt8?) -> Void)?
+    /// Returns true when the nearby-device list UI wants full advertisement
+    /// traffic (not just the pinned device). Checked on the BLE queue before
+    /// forwarding a non-pinned packet, to avoid unnecessary main-thread work.
+    var trackAllAdvertisements: (() -> Bool)?
 
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
@@ -129,7 +133,7 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         // bud and re-attaches to it after unpinning.
         self.pinnedID = pinnedID
         if central == nil {
-            central = CBCentralManager(delegate: self, queue: nil)
+            central = CBCentralManager(delegate: self, queue: DispatchQueue(label: "com.harysuryanto.brb.ble", qos: .utility))
         } else if central?.state == .poweredOn {
             startScan()
         }
@@ -207,8 +211,7 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         // collision case, handled with vendor checks at the engine layer).
         if let pinnedID, id == pinnedID { return true }
         if !targetName.isEmpty { return matches(name: name) }
-        if pinnedID != nil { return false }
-        return matches(name: name)
+        return false
     }
 
     /// Name match with TWS hints fallback.
@@ -251,17 +254,18 @@ final class LERSSIReader: NSObject, CBCentralManagerDelegate, CBPeripheralDelega
         }
         let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []
         let hasFastPair = serviceUUIDs.contains(CBUUID(string: "FE2C"))
-        // Advertisement RSSI is free proximity data — report it before any
-        // match/connect logic so even non-connectable beacons show up.
-        // This fires continuously (duplicates mode) so the nearby list,
-        // pruning, and ages stay live even while a monitor link is held.
-        onAdvertisement?(p.identifier, name, RSSI.intValue, companyID, hasFastPair, continuityType)
-        // Unnamed strangers get one shot at introducing themselves — the
-        // resolved name flows through onNameResolved and re-keys the group.
-        if isUnnamed(name) {
-            resolveName(p)
+
+        let isPinnedMatch = matches(id: p.identifier, name: name)
+        let shouldForward = isPinnedMatch || (trackAllAdvertisements?() ?? false)
+
+        if shouldForward {
+            onAdvertisement?(p.identifier, name, RSSI.intValue, companyID, hasFastPair, continuityType)
+            if isUnnamed(name) {
+                resolveName(p)
+            }
         }
-        guard matches(id: p.identifier, name: name) else {
+
+        guard isPinnedMatch else {
             // Time-throttled heartbeat (duplicates mode is chatty): proves
             // the scan works and shows whether the bud advertises at all.
             if Date().timeIntervalSince(lastHeartbeat) > 5.0 {

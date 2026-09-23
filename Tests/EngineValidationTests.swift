@@ -4,7 +4,7 @@
 //
 //  Validates the Signal Processor, Presence State Machine,
 //  Hysteresis, Grace Timer, Suppression, Default Veil Fallback,
-//  and Device Classification.
+//  Device Classification, and Advert Pruner.
 //
 
 import Foundation
@@ -23,8 +23,9 @@ struct EngineValidationTests {
         testSuppressionReturnCancellation()
         testDefaultVeilImageGeneration()
         testDeviceClassification()
+        testAdvertPruner()
 
-        print("\n🎉 ALL 8 TEST SUITES PASSED CLEANLY!")
+        print("\n🎉 ALL 9 TEST SUITES PASSED CLEANLY!")
     }
 
     // MARK: - 1. SignalProcessor EMA
@@ -155,7 +156,7 @@ struct EngineValidationTests {
         print("  ✅ Mid-suppression return cancellation verified.")
     }
 
-    // MARK: - 7. Default Veil Image Generation
+    // MARK: - 7. Default Veil Fallback
     static func testDefaultVeilImageGeneration() {
         print("▶ Testing procedural default veil image generation...")
         let imageManager = VeilImageManager.shared
@@ -216,5 +217,41 @@ struct EngineValidationTests {
         assert(classifyDevice(name: "(unnamed)", hasFastPair: true) == .buds, "Google Fast Pair service should classify as .buds")
 
         print("  ✅ Device classification verified.")
+    }
+
+    // MARK: - 9. AdvertPruner TTL & Capacity
+    static func testAdvertPruner() {
+        print("▶ Testing AdvertPruner (TTL & Capacity)...")
+        let now = Date()
+
+        // 1. Fresh vs stale (60s limit for unpinned)
+        var adverts: [String: AdvertSample] = [
+            "fresh": AdvertSample(name: "Buds", rssi: -60, at: now.addingTimeInterval(-10)),
+            "stale": AdvertSample(name: "Old Buds", rssi: -70, at: now.addingTimeInterval(-65)),
+            "pinnedStale": AdvertSample(name: "My Pin", rssi: -50, at: now.addingTimeInterval(-120))
+        ]
+
+        let pruned = AdvertPruner.pruneAdverts(adverts, pinnedKey: "pinnedStale", now: now)
+        assert(pruned["fresh"] != nil, "Fresh advert within 60s should be kept")
+        assert(pruned["stale"] == nil, "Stale unpinned advert (>60s) should be pruned")
+        assert(pruned["pinnedStale"] != nil, "Pinned advert within 300s TTL should be kept")
+
+        // 2. Pinned advert beyond 300s TTL should be pruned
+        adverts["pinnedVeryOld"] = AdvertSample(name: "My Pin", rssi: -50, at: now.addingTimeInterval(-305))
+        let prunedPinnedOld = AdvertPruner.pruneAdverts(adverts, pinnedKey: "pinnedVeryOld", now: now)
+        assert(prunedPinnedOld["pinnedVeryOld"] == nil, "Pinned advert older than 300s should be pruned")
+
+        // 3. Capacity limit (keep 30 freshest)
+        var manyAdverts: [String: AdvertSample] = [:]
+        for i in 0..<40 {
+            manyAdverts["dev_\(i)"] = AdvertSample(name: "Dev \(i)", rssi: -60, at: now.addingTimeInterval(-Double(i)))
+        }
+        let capped = AdvertPruner.pruneAdverts(manyAdverts, pinnedKey: nil, now: now)
+        assert(capped.count == 30, "AdvertPruner should cap entries to 30")
+        assert(capped["dev_0"] != nil, "Freshest entry dev_0 should be present")
+        assert(capped["dev_29"] != nil, "30th entry dev_29 should be present")
+        assert(capped["dev_30"] == nil, "31st entry dev_30 should be dropped")
+
+        print("  ✅ AdvertPruner verified.")
     }
 }

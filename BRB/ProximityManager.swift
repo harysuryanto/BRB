@@ -12,22 +12,6 @@ import Foundation
 import IOBluetooth
 import os
 
-/// One LE advertisement sighting, keyed by peripheral identifier.
-struct AdvertSample: Codable {
-    var name: String
-    var rssi: Int
-    var at: Date
-    /// Bluetooth SIG manufacturer company ID from the packet's manufacturer
-    /// data (nil when absent — many buds advertise Fast Pair instead).
-    var companyID: UInt16? = nil
-    /// Whether Google Fast Pair service data (0xFE2C) was present.
-    var hasFastPairService: Bool = false
-    /// Apple Continuity type byte (0x10 = Nearby Info/Phone, 0x07 = AirPods, 0x12 = AirTag, 0x0B = Watch).
-    var appleContinuityType: UInt8? = nil
-    /// Bluetooth SIG Appearance value (UUID 0x2A01) if resolved via GATT.
-    var sigAppearance: UInt16? = nil
-}
-
 // MARK: - Device identity (single source of truth for every surface)
 //
 // Scanner cards, monitored cards, onboarding, and the menu bar all render
@@ -115,6 +99,20 @@ class ProximityManager {
     var liveRSSI: Int? = nil
     var liveRSSIAt: Date? = nil
     var liveKind: String = "—"
+
+    /// True while a UI surface showing the nearby-device picker is visible
+    /// (Device tab in Settings, or onboarding's device-selection step).
+    /// Drives whether BLE scanning runs at all when nothing is pinned yet.
+    var nearbyListEnabled: Bool = false {
+        didSet {
+            guard pinnedKey == nil else { return }  // pinned device always keeps scanning
+            if nearbyListEnabled {
+                leReader?.start(targetName: "", pinnedID: nil)
+            } else {
+                leReader?.stop()
+            }
+        }
+    }
 
     // MARK: - Device Name Cache (persisted identity hints)
 
@@ -349,6 +347,12 @@ class ProximityManager {
         key.hasPrefix("uuid:") ? "" : key
     }
 
+    /// Prunes stale entries (60s TTL, 300s for the pinned key), keeps only the
+    /// freshest 30. Pure function — delegates to AdvertPruner.
+    static func pruneAdverts(_ adverts: [String: AdvertSample], pinnedKey: String?, now: Date) -> [String: AdvertSample] {
+        AdvertPruner.pruneAdverts(adverts, pinnedKey: pinnedKey, now: now)
+    }
+
     // MARK: - Configurable Thresholds & Settings (Persisted)
     var veilOnThreshold: Double {
         didSet { UserDefaults.standard.set(veilOnThreshold, forKey: "BRB.veilOnThreshold") }
@@ -440,6 +444,7 @@ class ProximityManager {
     private var leReader: LERSSIReader?
     private var timer: Timer?
     private var ticks: Int = 0
+    private var advertPruneTickCounter: Int = 0
     private var monitoringStartedAt: Date = Date()
     // α=0.8: light touch (history weight 0.2, a quarter of the old 0.8) —
     // tracks fast, leans on the hysteresis band + grace timer for stability.
@@ -633,13 +638,6 @@ class ProximityManager {
                                        sigAppearance: previous?.sigAppearance)
                 }
 
-                let now = Date()
-                self.leAdverts = Dictionary(uniqueKeysWithValues:
-                    self.leAdverts.filter { pair in
-                        let limit = (pair.key == self.pinnedUUIDHint) ? 300.0 : 60.0
-                        return now.timeIntervalSince(pair.value.at) < limit
-                    }.sorted { $0.value.at > $1.value.at }.prefix(30).map { ($0.key, $0.value) })
-
                 // A pinned advertisement feeds the live sample stream even without a
                 // held GATT link. Name matching (not the identifier) is what survives
                 // rotation — a fresh locator is adopted silently (see adoptLocator).
@@ -691,11 +689,16 @@ class ProximityManager {
             }
         }
 
+        reader.trackAllAdvertisements = { [weak self] in self?.nearbyListEnabled ?? false }
+
         reader.onStatus = { [weak self] status in
             DispatchQueue.main.async { self?.leStatus = status }
         }
 
-        reader.start(targetName: "", pinnedID: pinnedUUID)
+        if pinnedKey != nil || nearbyListEnabled {
+            let target = pinnedKey.map { Self.readerTargetName(forKey: $0) } ?? ""
+            reader.start(targetName: target, pinnedID: pinnedUUID)
+        }
 
         // 0.5s engine tick: poll readRSSI, check sample freshness, evaluate state machine
         ticks = 0
@@ -773,6 +776,16 @@ class ProximityManager {
         // 2. Scan hygiene restart every ~60s (120 ticks * 0.5s)
         if ticks % 120 == 0 {
             leReader?.restartScan()
+        }
+
+        // 2b. Prune stale adverts at ~1Hz (every 2nd tick of 0.5s timer)
+        advertPruneTickCounter += 1
+        if advertPruneTickCounter >= 2 {
+            advertPruneTickCounter = 0
+            let pruned = Self.pruneAdverts(leAdverts, pinnedKey: pinnedUUIDHint, now: Date())
+            if pruned.keys != leAdverts.keys || pruned.count != leAdverts.count {
+                leAdverts = pruned
+            }
         }
 
         // 3. Update sample age & staleness

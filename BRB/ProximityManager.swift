@@ -716,7 +716,7 @@ class ProximityManager {
     }
 
     func handleAppTermination() {
-        if failSecureEnabled {
+        if isVeilActive && failSecureEnabled {
             SessionLockManager.shared.lockScreen()
         }
     }

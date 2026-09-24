@@ -29,7 +29,7 @@ struct OnboardingView: View {
     /// Draft-side EMA (same α as the engine): the draft device is never
     /// pinned, so the engine filter never runs for it. Smoothing here keeps
     /// the preview, meter, and capture snapshot calm.
-    @State private var draftFilter = SignalProcessor(alpha: 0.8)
+    @State private var draftFilter = SignalProcessor(alpha: SignalProcessor.defaultAlpha)
     @State private var draftSmoothed: Double? = nil
 
     init(manager: ProximityManager = .shared, onComplete: @escaping () -> Void) {

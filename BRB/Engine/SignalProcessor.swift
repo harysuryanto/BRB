@@ -8,11 +8,14 @@
 import Foundation
 
 final class SignalProcessor {
-    /// Smoothing factor: 0.2 gives responsive tracking with resilience to multipath dips.
+    /// Global default smoothing factor (EMA α) used across the app (engine & draft filters).
+    /// α = 0.8: fast-tracking (80% weight on new packet, 20% on history).
+    static let defaultAlpha: Double = 0.8
+
     let alpha: Double
     private(set) var smoothed: Double?
 
-    init(alpha: Double = 0.2) {
+    init(alpha: Double = SignalProcessor.defaultAlpha) {
         self.alpha = alpha
     }
 

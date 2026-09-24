@@ -420,8 +420,34 @@ class ProximityManager {
             if protectionPaused {
                 isVeilActive = false
                 veilReason = nil
+            } else {
+                protectionPauseUntil = nil
+                protectionPauseRemaining = nil
             }
         }
+    }
+    /// Optional date until which protection is paused. If nil and `protectionPaused` is true, pause is indefinite.
+    var protectionPauseUntil: Date? = nil
+    /// Countdown mirror for UI display (in seconds), refreshed each engine tick.
+    var protectionPauseRemaining: TimeInterval? = nil
+
+    /// Quick helper to pause protection for a specific duration (e.g. 15 min, 1 hour).
+    func pauseProtection(for duration: TimeInterval) {
+        if duration > 0 {
+            protectionPauseUntil = Date().addingTimeInterval(duration)
+            protectionPauseRemaining = duration
+        } else {
+            protectionPauseUntil = nil
+            protectionPauseRemaining = nil
+        }
+        protectionPaused = true
+    }
+
+    /// Resumes protection immediately.
+    func resumeProtection() {
+        protectionPaused = false
+        protectionPauseUntil = nil
+        protectionPauseRemaining = nil
     }
 
     // MARK: - Calibration Cooldown
@@ -446,9 +472,9 @@ class ProximityManager {
     private var ticks: Int = 0
     private var advertPruneTickCounter: Int = 0
     private var monitoringStartedAt: Date = Date()
-    // α=0.8: light touch (history weight 0.2, a quarter of the old 0.8) —
-    // tracks fast, leans on the hysteresis band + grace timer for stability.
-    private let signalProcessor = SignalProcessor(alpha: 0.8)
+    // α=0.8: fast-tracking EMA — responsive state machine updates, leans on
+    // hysteresis band + grace timer for stability.
+    private let signalProcessor = SignalProcessor(alpha: SignalProcessor.defaultAlpha)
 
     private static var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -802,10 +828,26 @@ class ProximityManager {
         // 4. Manual protection pause (user toggle): dominate everything —
         // no veil, no grace accumulation, no state evaluation.
         if protectionPaused {
-            awayDuration = 0
-            isVeilActive = false
-            veilReason = nil
-            return
+            if let until = protectionPauseUntil {
+                let pauseLeft = until.timeIntervalSince(now)
+                if pauseLeft > 0 {
+                    protectionPauseRemaining = pauseLeft
+                    awayDuration = 0
+                    isVeilActive = false
+                    veilReason = nil
+                    return
+                } else {
+                    // Timed pause expired — auto-resume protection
+                    protectionPaused = false
+                    protectionPauseUntil = nil
+                    protectionPauseRemaining = nil
+                }
+            } else {
+                awayDuration = 0
+                isVeilActive = false
+                veilReason = nil
+                return
+            }
         }
 
         // 5. Calibration cooldown: pause veil activation so the user can walk
@@ -1020,6 +1062,8 @@ class ProximityManager {
         calibrationPauseRemaining = nil
         developerPauseUntil = nil
         developerPauseRemaining = nil
+        protectionPauseUntil = nil
+        protectionPauseRemaining = nil
     }
 
     // MARK: - Calibration Actions

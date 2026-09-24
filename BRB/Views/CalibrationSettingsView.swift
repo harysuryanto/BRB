@@ -72,6 +72,14 @@ struct CalibrationSettingsView: View {
                         Text(pinnedName)
                             .font(.subheadline.bold())
 
+                        if manager.protectionPaused {
+                            if let rem = manager.protectionPauseRemaining {
+                                DSPill(text: "Paused (\(formatCountdown(rem)))", tint: .orange)
+                            } else {
+                                DSPill(text: "Paused", tint: .orange)
+                            }
+                        }
+
                         if manager.presenceState == .gone {
                             DSPill(text: "Device Gone", tint: .red)
                         } else {

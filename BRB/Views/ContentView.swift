@@ -113,11 +113,19 @@ struct ContentView: View {
     private var deviceTab: some View {
         VStack(alignment: .leading, spacing: DS.spacingLG) {
             if manager.protectionPaused {
-                DSBanner(
-                    icon: "pause.circle",
-                    text: "Protection paused — the cover will not activate until resumed.",
-                    tint: .orange
-                )
+                if let rem = manager.protectionPauseRemaining {
+                    DSBanner(
+                        icon: "pause.circle.fill",
+                        text: "Protection paused — auto-resumes in \(formatCountdown(rem)). Cover will not activate until then.",
+                        tint: .orange
+                    )
+                } else {
+                    DSBanner(
+                        icon: "pause.circle",
+                        text: "Protection paused indefinitely — the cover will not activate until resumed.",
+                        tint: .orange
+                    )
+                }
             }
 
             // 1. Live Presence Status Card
@@ -135,6 +143,13 @@ struct ContentView: View {
                     HStack(spacing: DS.spacingSM) {
                         Text(presenceLabel)
                             .font(.headline)
+                        if manager.protectionPaused {
+                            if let rem = manager.protectionPauseRemaining {
+                                DSPill(text: "Paused (\(formatCountdown(rem)))", tint: .orange)
+                            } else {
+                                DSPill(text: "Paused", tint: .orange)
+                            }
+                        }
                         if let remaining = manager.suppressionRemaining {
                             DSPill(text: "Suppression Active (\(formatCountdown(remaining)))", tint: .purple)
                         }
@@ -192,19 +207,52 @@ struct ContentView: View {
             .background(DS.emphasisBg())
             .cornerRadius(DS.radius)
 
-            // 1b. Pause Protection toggle
-            HStack {
-                VStack(alignment: .leading, spacing: DS.spacingXS) {
-                    Text("Pause Protection")
-                        .font(.subheadline.bold())
-                    Text("Stops the cover from activating until resumed. Your screen stays visible while paused.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            // 1b. Pause Protection controls
+            VStack(alignment: .leading, spacing: DS.spacingSM) {
+                HStack {
+                    VStack(alignment: .leading, spacing: DS.spacingXS) {
+                        HStack(spacing: 6) {
+                            Text("Pause Protection")
+                                .font(.subheadline.bold())
+                            if manager.protectionPaused {
+                                if let rem = manager.protectionPauseRemaining {
+                                    Text("• Resumes in \(formatCountdown(rem))")
+                                        .font(.caption.monospacedDigit().weight(.semibold))
+                                        .foregroundColor(.orange)
+                                } else {
+                                    Text("• Paused indefinitely")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                        }
+                        Text("Stops the cover from activating until resumed. Your screen stays visible while paused.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Toggle("Pause Protection", isOn: $manager.protectionPaused)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
                 }
-                Spacer()
-                Toggle("Pause Protection", isOn: $manager.protectionPaused)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
+
+                // Preset duration buttons
+                HStack(spacing: 8) {
+                    pausePresetButton("15m", seconds: 15 * 60)
+                    pausePresetButton("1h", seconds: 3600)
+                    pausePresetButton("3h", seconds: 10800)
+                    pausePresetButton("Indefinite", seconds: 0)
+
+                    if manager.protectionPaused {
+                        Button("Resume Now") {
+                            manager.resumeProtection()
+                        }
+                        .font(.caption.weight(.medium))
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                        .controlSize(.small)
+                    }
+                }
             }
             .padding(DS.cardPad)
             .background(DS.cardBg)
@@ -255,6 +303,17 @@ struct ContentView: View {
             }
         }
         .padding(DS.outerPad)
+    }
+
+    private func pausePresetButton(_ title: String, seconds: TimeInterval) -> some View {
+        Button(action: {
+            manager.pauseProtection(for: seconds)
+        }) {
+            Text(title)
+                .font(.caption.weight(.medium))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 
     private var presenceColor: Color {

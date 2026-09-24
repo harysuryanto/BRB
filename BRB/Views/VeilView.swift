@@ -18,6 +18,14 @@ struct VeilView: View {
 
     @State private var imageManager = VeilImageManager.shared
 
+    private func triggerUnlock() {
+        if lockMode == .casual, let onCasualDismiss {
+            onCasualDismiss()
+        } else {
+            onUnlock()
+        }
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let safeWidth = proxy.size.width > 0 ? proxy.size.width : (NSScreen.main?.frame.width ?? 1920)
@@ -47,6 +55,18 @@ struct VeilView: View {
                                         .font(.system(size: 15, weight: .semibold))
                                     Text("Unlock with Mac Login")
                                         .font(.system(size: 14, weight: .semibold))
+                                    HStack(spacing: 2) {
+                                        Text("Space")
+                                            .font(.system(size: 10, weight: .bold))
+                                        Text("or")
+                                            .font(.system(size: 9))
+                                        Text("↵")
+                                            .font(.system(size: 11, weight: .bold))
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.2))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
                                 .padding(.horizontal, DS.Veil.btnHPad)
                                 .padding(.vertical, DS.Veil.btnVPad)
@@ -59,8 +79,9 @@ struct VeilView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .keyboardShortcut(.defaultAction)
 
-                            Text("Locks this Mac — log back in to dismiss the cover for a while.")
+                            Text("Locks this Mac — log back in to dismiss the cover. (Press Space, ↵, or Esc)")
                                 .font(.system(size: DS.Veil.helpSize))
                                 .foregroundColor(.white.opacity(0.7))
                         }
@@ -72,6 +93,18 @@ struct VeilView: View {
                                         .font(.system(size: 15, weight: .semibold))
                                     Text("Hide Cover")
                                         .font(.system(size: 14, weight: .semibold))
+                                    HStack(spacing: 2) {
+                                        Text("Space")
+                                            .font(.system(size: 10, weight: .bold))
+                                        Text("or")
+                                            .font(.system(size: 9))
+                                        Text("↵")
+                                            .font(.system(size: 11, weight: .bold))
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
                                 .padding(.horizontal, DS.Veil.btnHPad)
                                 .padding(.vertical, DS.Veil.btnVPad)
@@ -84,11 +117,29 @@ struct VeilView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .keyboardShortcut(.defaultAction)
 
-                            Text("Lifts the cover without locking — it returns if you're still away.")
+                            Text("Lifts the cover without locking. (Press Space, ↵, or Esc)")
                                 .font(.system(size: DS.Veil.helpSize))
                                 .foregroundColor(.white.opacity(0.7))
                         }
+
+                        // Hidden keyboard shortcut receivers for Space and Escape
+                        Button(action: triggerUnlock) {
+                            EmptyView()
+                        }
+                        .keyboardShortcut(.space, modifiers: [])
+                        .frame(width: 0, height: 0)
+                        .opacity(0)
+                        .accessibilityHidden(true)
+
+                        Button(action: triggerUnlock) {
+                            EmptyView()
+                        }
+                        .keyboardShortcut(.cancelAction)
+                        .frame(width: 0, height: 0)
+                        .opacity(0)
+                        .accessibilityHidden(true)
 
 #if DEBUG
                         if let onDeveloperPause {

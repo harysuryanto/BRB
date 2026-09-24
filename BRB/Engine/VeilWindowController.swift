@@ -8,6 +8,29 @@
 import AppKit
 import SwiftUI
 
+/// Borderless fullscreen window that can become key to accept keyboard shortcuts.
+final class VeilWindow: NSWindow {
+    var onUnlockAction: (() -> Void)?
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        // Key codes:
+        // 36: Return / Enter
+        // 49: Spacebar
+        // 53: Escape
+        // 76: Keypad Enter
+        if event.keyCode == 36 || event.keyCode == 49 || event.keyCode == 53 || event.keyCode == 76 {
+            if let onUnlockAction {
+                onUnlockAction()
+                return
+            }
+        }
+        super.keyDown(with: event)
+    }
+}
+
 final class VeilWindowController: NSObject {
     static let shared = VeilWindowController()
 
@@ -91,6 +114,7 @@ final class VeilWindowController: NSObject {
         mode = .real
         currentReason = reason
         vlog("showVeil: presenting real reason=\(reason ?? "nil") screens=\(NSScreen.screens.count)")
+        NSApp.activate(ignoringOtherApps: true)
         let ok = rebuildWindows(animated: true)
         if !ok {
             vlog("❌ showVeil: rebuild produced 0 windows — resetting to hidden (screens=\(NSScreen.screens.count))")
@@ -118,6 +142,7 @@ final class VeilWindowController: NSObject {
         mode = .preview
         currentReason = reason
         vlog("showPreview: presenting preview duration=\(duration)s screens=\(NSScreen.screens.count)")
+        NSApp.activate(ignoringOtherApps: true)
         let ok = rebuildWindows(animated: true)
         if !ok {
             vlog("❌ showPreview: rebuild produced 0 windows — resetting to hidden")
@@ -254,7 +279,7 @@ final class VeilWindowController: NSObject {
     }
 
     private func makeVeilWindow(for screen: NSScreen) -> (NSWindow, NSHostingController<VeilView>) {
-        let window = NSWindow(
+        let window = VeilWindow(
             contentRect: screen.frame,
             styleMask: [.borderless],
             backing: .buffered,
@@ -270,6 +295,15 @@ final class VeilWindowController: NSObject {
         window.ignoresMouseEvents = false
         window.hidesOnDeactivate = false
         window.isReleasedWhenClosed = false
+
+        window.onUnlockAction = { [weak self] in
+            guard let self else { return }
+            if ProximityManager.shared.veilLockMode == .casual, let onCasual = self.onCasualDismissRequested {
+                onCasual()
+            } else {
+                self.onUnlockRequested?()
+            }
+        }
 
         var rootView = VeilView(reason: currentReason) { [weak self] in
             self?.onUnlockRequested?()

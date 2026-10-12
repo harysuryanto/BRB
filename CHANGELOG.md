@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Resolved severe memory leak on device selection:** Removed `.contentTransition(.numericText())` and `.animation()` from the live RSSI readout in `MenuBarPopoverView`. High-frequency BLE packet arrivals were interrupting in-flight glyph morph transitions, causing SwiftUI and CoreAnimation to accumulate unreleased layer snapshots and driving memory consumption over 600 MB. Memory usage now stays flat at ~55–60 MB during active monitoring.
 
+  **Memory Benchmark (`resident_size` during continuous 20 Hz RSSI streaming):**
+
+  | State | Initial | 20 Updates (~1s) | 40 Updates (~2s) | 60 Updates (~3s) | 100 Updates (~5s) | 500 Updates (~25s) |
+  |---|---|---|---|---|---|---|
+  | **Before (with `.contentTransition`)** | 54 MB | 190 MB | 354 MB | 509 MB | 659 MB | *(runaway)* |
+  | **After (fix applied)** | 54 MB | 60 MB | 60 MB | 60 MB | 55 MB | 55 MB (stable) |
+
 ### Documentation
 - Updated README documentation, screenshots, and DMG distribution references.
 

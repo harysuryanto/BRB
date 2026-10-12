@@ -87,8 +87,6 @@ struct MenuBarPopoverView: View {
                             Text("\(Int(round(rssi))) dBm")
                                 .font(.caption.monospacedDigit())
                                 .foregroundColor(.secondary)
-                                .contentTransition(.numericText())
-                                .animation(.smooth(duration: 0.25), value: Int(round(rssi)))
                         }
                     } else {
                         Text("Searching…")

@@ -4,6 +4,27 @@ BRB is a macOS presence-privacy app for wireless-earbud wearers. While you sit a
 
 Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water run doesn't nuke your session.
 
+## Video demo
+
+<!-- Replace with your YouTube, Loom, or raw MP4 demo link -->
+> 📹 **Watch BRB in action:** [Video Walkthrough Demo](https://github.com/harysuryanto/BRB)
+
+<!--
+[![Watch the Demo](docs/assets/video-thumbnail.png)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
+-->
+
+## Screenshots
+
+<!-- Place screenshots in docs/assets/ or link external image URLs -->
+
+| Control Center (Device & Signal) | Menu Bar Extra & Quick Pause |
+| :---: | :---: |
+| <img src="docs/assets/screenshot-settings.png" alt="Control Center" width="460"/> | <img src="docs/assets/screenshot-menubar.png" alt="Menu Bar Extra" width="300"/> |
+
+| Calibration & Hysteresis | Fullscreen Screen Cover |
+| :---: | :---: |
+| <img src="docs/assets/screenshot-calibration.png" alt="Calibration" width="460"/> | <img src="docs/assets/screenshot-veil.png" alt="Fullscreen Screen Cover" width="460"/> |
+
 ## Requirements
 
 - Real Mac with Bluetooth (no simulator — CoreBluetooth needs hardware)

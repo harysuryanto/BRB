@@ -3,11 +3,12 @@
 //  BRB
 //
 //  Main Control Center & Settings window for BRB.
-//  Includes 4 tabs:
+//  Includes 5 tabs:
 //  1. Device & Presence (Real-time signal diagnostics, presence badge, nearby scanner)
 //  2. Screen Cover (Veil cover preview and custom image picker)
 //  3. Calibration (Threshold sliders, hysteresis band, and away capture)
 //  4. Timers & Security (Grace delay, suppression window, and fail-secure toggle)
+//  5. About (System information, app architecture, privacy commitments, diagnostic exports)
 //
 
 import SwiftUI
@@ -18,7 +19,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case cover = "Screen Cover"
     case calibration = "Calibration"
     case security = "Timers & Security"
-
+    case about = "About"
     var id: String { rawValue }
 
     /// Short label for the TabView bar so all four tabs fit without collapsing.
@@ -28,6 +29,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .cover: return "Cover"
         case .calibration: return "Calibration"
         case .security: return "Security"
+        case .about: return "About"
         }
     }
 
@@ -37,6 +39,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .cover: return "photo.on.rectangle.angled"
         case .calibration: return "slider.horizontal.3"
         case .security: return "shield.checkered"
+        case .about: return "info.circle"
         }
     }
 }
@@ -98,6 +101,12 @@ struct ContentView: View {
             }
             .tabItem { Label(SettingsTab.security.title, systemImage: SettingsTab.security.icon) }
             .tag(SettingsTab.security)
+
+            ScrollView {
+                AboutSettingsView(manager: manager)
+            }
+            .tabItem { Label(SettingsTab.about.title, systemImage: SettingsTab.about.icon) }
+            .tag(SettingsTab.about)
         }
         .frame(
             minWidth: DS.windowWidth,

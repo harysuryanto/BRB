@@ -24,8 +24,9 @@ struct EngineValidationTests {
         testDefaultVeilImageGeneration()
         testDeviceClassification()
         testAdvertPruner()
+        testAboutTabAndMetadata()
 
-        print("\n🎉 ALL 9 TEST SUITES PASSED CLEANLY!")
+        print("\n🎉 ALL 10 TEST SUITES PASSED CLEANLY!")
     }
 
     // MARK: - 1. SignalProcessor EMA
@@ -253,5 +254,19 @@ struct EngineValidationTests {
         assert(capped["dev_30"] == nil, "31st entry dev_30 should be dropped")
 
         print("  ✅ AdvertPruner verified.")
+    }
+
+    // MARK: - 10. About Tab & Native Metadata
+    static func testAboutTabAndMetadata() {
+        print("▶ Testing About Tab & Native macOS metadata...")
+
+        // Tab position and properties
+        let tabs = SettingsTab.allCases
+        assert(tabs.count == 5, "SettingsTab should have exactly 5 tabs, got \(tabs.count)")
+        assert(tabs.last == .about, "SettingsTab.about MUST be the rightmost tab in the tab set")
+        assert(SettingsTab.about.title == "About", "About tab title should be 'About'")
+        assert(SettingsTab.about.icon == "info.circle", "About tab icon should be 'info.circle'")
+
+        print("  ✅ About tab rightmost placement and native metadata verified.")
     }
 }

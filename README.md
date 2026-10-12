@@ -38,7 +38,7 @@ First launch walks through 3 onboarding steps (draft until you hit Finish — qu
   - *Cover* — custom veil image (picker/preview/reset) + Secure/Casual lock mode.
   - *Calibration* — Veil-On/Veil-Off threshold sliders + away-boundary capture.
   - *Timers & Security* — grace delay, post-unlock suppression, cover-on-signal-lost, fail-secure (lock on quit).
-- **Veil**: one button, **Unlock with Mac Login** → system lock → authenticate at loginwindow → cover stays down for the suppression window.
+  - *About* — app identity, version, copyright, and GitHub repository link.
 
 ### Defaults
 

@@ -129,6 +129,10 @@ Tracking implementation progress against the [Product Requirements Document](PRD
     - Fail-secure toggle with security disclaimer.
     - "Re-run Onboarding Setup" action.
 
+  - [x] **About Tab (Rightmost):**
+    - Minimal native application identity: high-res app icon, display name, tagline, version and build number.
+    - Human-readable copyright notice.
+    - Direct button link to the GitHub repository.
 ---
 
 ## Phase 7: Testing & Acceptance Validation _(Completed)_

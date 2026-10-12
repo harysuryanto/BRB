@@ -15,9 +15,9 @@ Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water ru
 
 ## Screenshot
 
-<p align="center">
-  <img src="docs/assets/screenshot.png" alt="BRB Screenshot" width="800">
-</p>
+<img width="425" height="323" alt="Screenshot 2026-10-12 at 17 48 26" src="https://github.com/user-attachments/assets/42519538-b2f0-44b5-90a3-1018498a9872" />
+<img width="752" height="892" alt="Screenshot 2026-10-12 at 17 30 38" src="https://github.com/user-attachments/assets/2e0bb725-9b01-4115-93c3-ba1dbf1be125" />
+<img width="752" height="892" alt="Screenshot 2026-10-12 at 17 31 20" src="https://github.com/user-attachments/assets/ea66604f-30f0-44ad-b2c0-301231a939e2" />
 
 ## Requirements
 

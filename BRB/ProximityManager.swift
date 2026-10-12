@@ -11,6 +11,7 @@ import CoreBluetooth
 import Foundation
 import IOBluetooth
 import os
+import ServiceManagement
 
 // MARK: - Device identity (single source of truth for every surface)
 //
@@ -375,6 +376,12 @@ class ProximityManager {
     var veilLockMode: VeilLockMode {
         didSet { UserDefaults.standard.set(veilLockMode.rawValue, forKey: "BRB.veilLockMode") }
     }
+    var launchAtLoginEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(launchAtLoginEnabled, forKey: "BRB.launchAtLogin")
+            applyLaunchAtLogin(enabled: launchAtLoginEnabled)
+        }
+    }
 
     // MARK: - Presence State Machine
     var presenceState: PresenceState = .idle
@@ -489,6 +496,7 @@ class ProximityManager {
         self.failSecureEnabled = defaults.object(forKey: "BRB.failSecureEnabled") as? Bool ?? true
         self.veilOnGoneEnabled = defaults.object(forKey: "BRB.veilOnGone") as? Bool ?? true
         self.veilLockMode = VeilLockMode(rawValue: defaults.string(forKey: "BRB.veilLockMode") ?? "") ?? .secure
+        self.launchAtLoginEnabled = defaults.object(forKey: "BRB.launchAtLogin") as? Bool ?? true
         let cache = Self.loadNameCache()
         // One-time: re-key legacy UUID-keyed entries by embedded real names.
         var rekeyed: [String: CachedDevice] = [:]
@@ -522,6 +530,27 @@ class ProximityManager {
         }
 
         setupLockAndVeilCallbacks()
+        applyLaunchAtLogin(enabled: self.launchAtLoginEnabled)
+    }
+
+    // MARK: - Launch at Login Management
+    func applyLaunchAtLogin(enabled: Bool) {
+        guard !Self.isPreview else { return }
+        // Only register when running inside the actual app bundle
+        guard Bundle.main.bundleIdentifier == "com.harysuryanto.brb" else { return }
+        do {
+            if enabled {
+                if SMAppService.mainApp.status != .enabled {
+                    try SMAppService.mainApp.register()
+                }
+            } else {
+                if SMAppService.mainApp.status == .enabled {
+                    try SMAppService.mainApp.unregister()
+                }
+            }
+        } catch {
+            print("[BRB] ⚠️ Launch at Login registration failed (enabled=\(enabled)): \(error.localizedDescription)")
+        }
     }
 
     private static func loadNameCache() -> [String: CachedDevice] {

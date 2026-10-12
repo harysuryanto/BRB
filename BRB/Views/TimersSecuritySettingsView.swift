@@ -130,6 +130,23 @@ struct TimersSecuritySettingsView: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                 }
+
+                Divider()
+
+                // Launch at Login
+                HStack {
+                    VStack(alignment: .leading, spacing: DS.spacingXS) {
+                        Text("Launch at Login")
+                            .font(.subheadline.bold())
+                        Text("Automatically start BRB in the background when you log into your Mac.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Toggle("Launch at Login", isOn: $manager.launchAtLoginEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
             }
             .padding(DS.cardPad)
             .background(DS.cardBg)

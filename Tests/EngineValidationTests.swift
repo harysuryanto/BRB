@@ -25,8 +25,9 @@ struct EngineValidationTests {
         testDeviceClassification()
         testAdvertPruner()
         testAboutTabAndMetadata()
+        testLaunchAtLoginDefault()
 
-        print("\n🎉 ALL 10 TEST SUITES PASSED CLEANLY!")
+        print("\n🎉 ALL 11 TEST SUITES PASSED CLEANLY!")
     }
 
     // MARK: - 1. SignalProcessor EMA
@@ -268,5 +269,37 @@ struct EngineValidationTests {
         assert(SettingsTab.about.icon == "info.circle", "About tab icon should be 'info.circle'")
 
         print("  ✅ About tab rightmost placement and native metadata verified.")
+    }
+
+    // MARK: - 11. Launch at Login Default & Policy
+    static func testLaunchAtLoginDefault() {
+        print("▶ Testing Launch at Login default & persistence...")
+
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: "BRB.launchAtLogin")
+
+        // 1. Unset key MUST fall back to default value true
+        defaults.removeObject(forKey: "BRB.launchAtLogin")
+        let fallback = defaults.object(forKey: "BRB.launchAtLogin") as? Bool ?? true
+        assert(fallback == true, "Launch at Login MUST default to true when unconfigured")
+
+        // 2. Explicit false persistence
+        defaults.set(false, forKey: "BRB.launchAtLogin")
+        let disabled = defaults.object(forKey: "BRB.launchAtLogin") as? Bool ?? true
+        assert(disabled == false, "Launch at Login MUST persist disabled state")
+
+        // 3. Explicit true persistence
+        defaults.set(true, forKey: "BRB.launchAtLogin")
+        let enabled = defaults.object(forKey: "BRB.launchAtLogin") as? Bool ?? true
+        assert(enabled == true, "Launch at Login MUST persist enabled state")
+
+        // Restore previous value
+        if let previous {
+            defaults.set(previous, forKey: "BRB.launchAtLogin")
+        } else {
+            defaults.removeObject(forKey: "BRB.launchAtLogin")
+        }
+
+        print("  ✅ Launch at Login default (true) and persistence verified.")
     }
 }

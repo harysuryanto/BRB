@@ -76,6 +76,7 @@ First launch walks through 3 onboarding steps (draft until you hit Finish — qu
 | Grace delay | 10 s |
 | Post-unlock suppression | 15 min |
 | Fail-secure (lock on quit) | On |
+| Launch at Login | On |
 | Pause Protection | Off, session-only (relaunch always resumes protection) |
 
 ## How it works
@@ -99,10 +100,10 @@ TODO.md                   Build roadmap / status
 
 ## Tests
 
-Standalone suite (EMA, presence transitions, hysteresis, grace, gone, suppression, default veil image) — all 7 currently green:
+Standalone suite (EMA, presence transitions, hysteresis, grace, gone, suppression, default veil image, device classification, advert pruner, about metadata, launch at login) — all 11 currently green:
 
 ```bash
-swiftc -o /tmp/brb-tests Tests/EngineValidationTests.swift BRB/Engine/SignalProcessor.swift BRB/Engine/PresenceState.swift BRB/Engine/VeilImageManager.swift -framework AppKit && /tmp/brb-tests
+swiftc -o /tmp/brb-tests Tests/EngineValidationTests.swift BRB/ProximityManager.swift BRB/Engine/*.swift BRB/Views/*.swift -framework AppKit -framework CoreBluetooth -framework ServiceManagement && /tmp/brb-tests
 ```
 
 ## Docs

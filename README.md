@@ -14,7 +14,7 @@ Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water ru
 
 Download the pre-built installer from the [GitHub Releases](https://github.com/harysuryanto/BRB/releases) page:
 
-1. Download **`BRB-v1.0.0.dmg`** (or latest) from the [Releases](https://github.com/harysuryanto/BRB/releases) page.
+1. Download the latest **`.dmg`** installer from the [Releases](https://github.com/harysuryanto/BRB/releases) page.
 2. Open the downloaded `.dmg` and drag **`BRB.app`** into your `/Applications` folder.
 3. **⚠️ MANDATORY: Clear the Gatekeeper quarantine before opening**
    Because BRB is an open-source, unsandboxed utility distributed outside the Mac App Store without an Apple Notary certificate, **macOS will block launch or falsely report the app is damaged** if opened directly.

@@ -14,8 +14,8 @@ Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water ru
 
 Download the pre-built installer from the [GitHub Releases](https://github.com/harysuryanto/BRB/releases) page:
 
-1. Download **`BRB.dmg`** from the latest release.
-2. Open `BRB.dmg` and drag **`BRB.app`** into your `/Applications` folder.
+1. Download **`BRB-v1.0.0.dmg`** (or latest) from the [Releases](https://github.com/harysuryanto/BRB/releases) page.
+2. Open the downloaded `.dmg` and drag **`BRB.app`** into your `/Applications` folder.
 3. **⚠️ MANDATORY: Clear the Gatekeeper quarantine before opening**
    Because BRB is an open-source, unsandboxed utility distributed outside the Mac App Store without an Apple Notary certificate, **macOS will block launch or falsely report the app is damaged** if opened directly.
 
@@ -50,6 +50,7 @@ To package a distributable drag-and-drop DMG:
 ```bash
 ./scripts/build-dmg.sh
 ```
+
 ## First launch & setup
 
 First launch walks through 3 onboarding steps (draft until you hit Finish — quitting early changes nothing):
@@ -75,6 +76,8 @@ First launch walks through 3 onboarding steps (draft until you hit Finish — qu
 | Veil-On / Veil-Off thresholds | −80 / −74 dBm (6 dBm hysteresis band) |
 | Grace delay | 10 s |
 | Post-unlock suppression | 15 min |
+| Cover Lock mode | Secure (lifts only on device return or Mac login) |
+| Cover on Signal Lost | On (covers screen if bud signal vanishes) |
 | Fail-secure (lock on quit) | On |
 | Launch at Login | On |
 | Pause Protection | Off, session-only (relaunch always resumes protection) |
@@ -87,17 +90,23 @@ First launch walks through 3 onboarding steps (draft until you hit Finish — qu
 
 ```
 BRB/
-  BRBApp.swift            Menu bar + main window
-  ProximityManager.swift  Engine coordinator (tick, state machine, veil, lock)
-  Engine/                 LERSSIReader, SignalProcessor, PresenceState,
-                          VeilWindowController, VeilImageManager, SessionLockManager
+  BRBApp.swift            Menu bar extra + main window entry
+  ProximityManager.swift  Engine coordinator (tick, state machine, veil, lock, settings)
+  Engine/                 LERSSIReader, SignalProcessor, PresenceState, DeviceClassifier,
+                          AdvertPruner, VeilWindowController, VeilImageManager, CoverAnimation,
+                          SessionLockManager
   Views/                  ContentView (TabView), OnboardingView, DevicePickerView,
-                          Cover/Calibration/Timers settings, VeilView, DesignTokens
-Tests/EngineValidationTests.swift   Standalone @main acceptance suite
+                          MenuBarPopoverView, CalibrationRangeMeterView, CoverSettingsView,
+                          CalibrationSettingsView, TimersSecuritySettingsView, AboutSettingsView,
+                          VeilView, AnimatedCoverView, DesignTokens
+scripts/
+  build-dmg.sh            Drag-and-drop DMG packager (BRB-v{version}.dmg)
+  generate-app-icon.swift macOS app icon generator (Signal & Lock vector artwork)
+  generate-dmg-background.swift High-DPI DMG background generator
+Tests/EngineValidationTests.swift   Standalone 11-suite @main acceptance suite
 PRD.md                    Full product requirements
 TODO.md                   Build roadmap / status
 ```
-
 ## Tests
 
 Standalone suite (EMA, presence transitions, hysteresis, grace, gone, suppression, default veil image, device classification, advert pruner, about metadata, launch at login) — all 11 currently green:

@@ -10,7 +10,36 @@ Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water ru
 - Xcode 17+, Swift 5, macOS 26 SDK (target: macOS 26.5+, `com.harysuryanto.brb`)
 - Unsandboxed Developer-ID-style build (sandbox blocks session lock + Bluetooth); first launch **Allow** when macOS asks for Bluetooth
 
-## Quick start
+## Installation
+
+Download the pre-built installer from the [GitHub Releases](https://github.com/harysuryanto/BRB/releases) page:
+
+1. Download **`BRB.dmg`** from the latest release.
+2. Open `BRB.dmg` and drag **BRB.app** into `/Applications`.
+3. Launch BRB from `/Applications`.
+
+### Gatekeeper Bypass
+
+Because BRB is an open-source, direct-distribution utility without a paid Apple Developer Notary certificate, macOS Gatekeeper may block the first launch (*"BRB cannot be opened because Apple cannot check it for malicious software"* or *"damaged and can't be opened"*).
+
+Choose either method to permit launch:
+
+**Option 1: Terminal (One-line fix)**
+Remove the quarantine flag attached by macOS during download:
+```bash
+xattr -cr /Applications/BRB.app
+```
+
+**Option 2: macOS Settings**
+1. Right-click (or Control-click) **`BRB.app`** in Finder → select **Open**.
+2. Click **Open** in the confirmation alert.
+3. *Or:* Go to **System Settings → Privacy & Security**, scroll down to the **Security** section, and click **Open Anyway** next to BRB.
+
+> **Note:** On first launch, macOS will request **Bluetooth** access. Click **Allow** so BRB can scan for your device's presence.
+
+---
+
+## Building from source
 
 ```bash
 git clone git@github.com:harysuryanto/BRB.git
@@ -23,6 +52,13 @@ Or headless:
 ```bash
 xcodebuild -project BRB.xcodeproj -scheme BRB -configuration Debug -destination 'platform=macOS' build
 ```
+
+To package a distributable drag-and-drop DMG:
+
+```bash
+./scripts/build-dmg.sh
+```
+## First launch & setup
 
 First launch walks through 3 onboarding steps (draft until you hit Finish — quitting early changes nothing):
 

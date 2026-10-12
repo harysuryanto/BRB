@@ -15,27 +15,19 @@ Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water ru
 Download the pre-built installer from the [GitHub Releases](https://github.com/harysuryanto/BRB/releases) page:
 
 1. Download **`BRB.dmg`** from the latest release.
-2. Open `BRB.dmg` and drag **BRB.app** into `/Applications`.
-3. Launch BRB from `/Applications`.
+2. Open `BRB.dmg` and drag **`BRB.app`** into your `/Applications` folder.
+3. **⚠️ MANDATORY: Clear the Gatekeeper quarantine before opening**
+   Because BRB is an open-source, unsandboxed utility distributed outside the Mac App Store without an Apple Notary certificate, **macOS will block launch or falsely report the app is damaged** if opened directly.
 
-### Gatekeeper Bypass
+   Open Terminal and run this one-line command:
+   ```bash
+   xattr -cr /Applications/BRB.app
+   ```
 
-Because BRB is an open-source, direct-distribution utility without a paid Apple Developer Notary certificate, macOS Gatekeeper may block the first launch (*"BRB cannot be opened because Apple cannot check it for malicious software"* or *"damaged and can't be opened"*).
+   *(Alternative without Terminal: Right-click / Control-click **`BRB.app`** in Finder → click **Open** → click **Open** in the dialog. If blocked, open **System Settings → Privacy & Security** and click **Open Anyway**).*
 
-Choose either method to permit launch:
-
-**Option 1: Terminal (One-line fix)**
-Remove the quarantine flag attached by macOS during download:
-```bash
-xattr -cr /Applications/BRB.app
-```
-
-**Option 2: macOS Settings**
-1. Right-click (or Control-click) **`BRB.app`** in Finder → select **Open**.
-2. Click **Open** in the confirmation alert.
-3. *Or:* Go to **System Settings → Privacy & Security**, scroll down to the **Security** section, and click **Open Anyway** next to BRB.
-
-> **Note:** On first launch, macOS will request **Bluetooth** access. Click **Allow** so BRB can scan for your device's presence.
+4. Launch **`BRB.app`** from `/Applications`.
+5. When prompted, click **Allow** for **Bluetooth access** (required to monitor your device's radio proximity).
 
 ---
 

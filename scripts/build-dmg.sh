@@ -7,7 +7,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_PATH="${REPO_ROOT}/build/Release/BRB.app"
-OUTPUT_DMG="${REPO_ROOT}/BRB.dmg"
+VERSION=$(grep -m1 "MARKETING_VERSION = " "${REPO_ROOT}/BRB.xcodeproj/project.pbxproj" | tr -d ' ;' | cut -d'=' -f2)
+OUTPUT_DMG="${REPO_ROOT}/BRB-v${VERSION}.dmg"
 BG_IMAGE="${REPO_ROOT}/scripts/assets/dmg-background.tiff"
 
 REBUILD=0
@@ -65,6 +66,12 @@ if [[ ! -d "$APP_PATH" ]]; then
     echo "❌ Error: BRB.app could not be found at ${APP_PATH}"
     exit 1
 fi
+# Resolve final bundle version if Info.plist is present
+if [[ -f "${APP_PATH}/Contents/Info.plist" ]]; then
+    VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || echo "$VERSION")
+    OUTPUT_DMG="${REPO_ROOT}/BRB-v${VERSION}.dmg"
+fi
+
 
 # 4. Ad-hoc codesign for clean portable distribution
 echo "✍️  Ad-hoc signing BRB.app for portable distribution..."

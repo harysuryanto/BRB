@@ -22,3 +22,7 @@ Icon
 
 # Swift PM
 .build/
+
+# Packaging
+*.dmg
+*.zip

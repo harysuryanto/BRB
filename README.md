@@ -6,12 +6,9 @@ Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water ru
 
 ## Video demo
 
-<!-- Replace with your YouTube, Loom, or raw MP4 demo link -->
-> 📹 **Watch BRB in action:** [Video Walkthrough Demo](https://github.com/harysuryanto/BRB)
+[![Watch BRB Demo](https://i.ytimg.com/vi/bewnEYqGDLc/hqdefault.jpg)](https://youtu.be/bewnEYqGDLc)
 
-<!--
-[![Watch the Demo](docs/assets/video-thumbnail.png)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
--->
+> 📹 **Watch on YouTube:** [https://youtu.be/bewnEYqGDLc](https://youtu.be/bewnEYqGDLc)
 
 ## Screenshot
 

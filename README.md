@@ -6,7 +6,7 @@ Unlike lock-on-walk tools, BRB is **veil-first, lock-on-demand**: every water ru
 
 ## Video demo
 
-<img width="1280" height="720" alt="telegram-cloud-photo-size-5-6228885783020507834-y" src="https://github.com/user-attachments/assets/e79e874b-05dc-458d-94e7-51ce6e1045b9" />  
+<a href="https://youtu.be/bewnEYqGDLc"><img width="1280" height="720" alt="telegram-cloud-photo-size-5-6228885783020507834-y" src="https://github.com/user-attachments/assets/e79e874b-05dc-458d-94e7-51ce6e1045b9" /></a>
 
 📹 **Watch on YouTube:** [https://youtu.be/bewnEYqGDLc](https://youtu.be/bewnEYqGDLc)
 
